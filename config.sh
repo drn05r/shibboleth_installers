@@ -54,8 +54,25 @@ ShibUserPassAuth {
 EOF
 
 read -d '' apache_ports_config <<"EOF"
-Listen 443
 Listen 8443
+EOF
+
+cat <<EOF > $tempdir/expect.sh
+#!/usr/bin/expect
+spawn env IdpCertLifetime=3 JAVA_HOME=${JAVA_HOME} ./install.sh
+expect "Buildfile: src/installer/resources/build.xml
+
+install:
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+Be sure you have read the installation/upgrade instructions on the Shibboleth website before proceeding.
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+Where should the Shibboleth Identity Provider software be installed? \[/opt/shibboleth-idp\]"
+send "/opt/shibboleth-idp\r"
+expect "What is the fully qualified hostname of the Shibboleth Identity Provider server? \[default: idp.example.org\]"
+send "${server_for_ssl}\r"
+expect "A keystore is about to be generated for you. Please enter a password that will be used to protect it."
+send "${shib_idp_keystore_password}\r"
+interact
 EOF
 
 cat <<EOF > $tempdir/mysql_setup.sql 

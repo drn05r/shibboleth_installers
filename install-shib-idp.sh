@@ -31,8 +31,7 @@ cp /etc/profile $tempdir
 echo "$etc_profile_1" >> $tempdir/profile
 sudo cp $tempdir/profile /etc/
 eval "$etc_profile_1"
-MY_TEST=helloworld
-export MY_TEST
+
 
 echo "Installing Tomcat"
 sudo apt-get install -y tomcat6
@@ -65,33 +64,26 @@ if [ "$jdbc_file_type" != "jar" ]; then
 	echo "JDBC file found '$jdbc_file' is not a JAR.  Aborting..."
 	exit 1
 fi
-sudo cp $HOME/$jdbc_file /usr/local/src/$shib_idp_folder/lib/
-cd /usr/local/src/$shib_idp_folder/
-sudo env IdpCertLifetime=3 JAVA_HOME=$JAVA_HOME ./install.sh
-## Manual configuration steps ##
-expect "Where should the Shibboleth Identity Provider software be installed? [/opt/shibboleth-idp]"
-send "/opt/shibboleth-idp"
-expect "What is the fully qualified hostname of the Shibboleth Identity Provider server? [default: idp.example.org]"
-send "${server_for_ssl}"
-expect "A keystore is about to be generated for you. Please enter a password that will be used to protect it."
-send "${shib_idp_keystore_password}"
-
-
+sudo cp ${downloads_dir}/${jdbc_file} /usr/local/src/${shib_idp_folder}/lib/
+sudo cp ${tempdir}/expect.sh
+cd /usr/local/src/${shib_idp_folder}/
+sudo chmod ug+x expect.sh
+sudo ./expect.sh
 sudo ln -s /opt/shibboleth-idp/logs /var/log/shibboleth
 cp /etc/profile $tempdir
 echo "$etc_profile_2" >> $tempdir/profile
 sudo cp $tempdir/profile /etc/
-eval "$etc_profile"
 cp /etc/tomcat6/Catalina/localhost/idp.xml $tempdir
 echo "$idp_xml" >> $tempdir/idp.xml
 sudo cp $tempdir/idp.xml /etc/tomcat6/Catalina/localhost/
 
 
 echo "Installing MySQL"
+mysql_server_pkg=`apt-cache search mysql-server | grep -o "^mysql-server-[0-9][^ ]*"`
+sudo su -c "echo ${mysql_server_pkg} mysql-server/root_password password `echo "'"``echo ${mysql_root_password}``echo "'"` | debconf-set-selections"
+sudo su -c "echo ${mysql_server_pkg} mysql-server/root_password_again password `echo "'"``echo ${mysql_root_password}``echo "'"` | debconf-set-selections" 
 sudo apt-get install -y mysql-server mysql-client
-
-/usr/bin/mysqladmin -u root password $mysql_root_password
-mysql -u root -p < $tempdir/mysql_setup.sql
+mysql -u root -p${mysql_root_password} < ${tempdir}/mysql_setup.sql
 
 
 echo "Setting up SSL certificates"
