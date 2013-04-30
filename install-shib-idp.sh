@@ -2,6 +2,7 @@
 d=`dirname $0`
 basedir=`cd ${d}; pwd`
 tempdir=$(mktemp -d /tmp/shib-idp_installer.XXXXXXXXXX)
+downloads_dir="$HOME/shibboleth_downloads"
 if [ ! -f "${basedir}/settings.sh" ]; then
         echo "Cannot find ${basedir}/settings.sh.  Aborting..."
         exit 1;
@@ -12,7 +13,7 @@ echo "+----------------------------------------+"
 echo "| Shibboleth Identity Provider Installer |"
 echo "+----------------------------------------+"
 echo ""
-jdbc_file=`ls $HOME | grep mysql-connector-java | grep "\.jar" | head -n 1` 
+jdbc_file=`ls ${downloads_dir} | grep mysql-connector-java | grep "\.jar" | head -n 1` 
 if [ -z "$jdbc_file" ]; then
 	echo "You must put the JDBC connector (e.g. mysql-connector-java.x.y.z-bin.jar) in your home directory ($HOME)."
 	exit 1
@@ -46,11 +47,14 @@ shib_idp_download_url="http://shibboleth.net/downloads/identity-provider/"
 shib_idp_folder="shibboleth-identityprovider-${shib_idp_version}"
 shib_idp_zip="${shib_idp_folder}-bin.zip"
 shib_idp_dowload_zip_url="${shib_idp_download_url}${shib_idp_version}/${shib_idp_zip}"
-sudo wget $shib_idp_dowload_zip_url -O ${tempdir}/${shib_idp_zip}
-#sudo wget $shib_idp_dowload_zip_url.asc
-cd $tempdir
-sudo unzip $shib_idp_zip
-#sudo mv $shib_idp_folder /usr/local/src/ 
+if [ ! -f ${downloads_dir}/${shib_idp_zip} ]; then
+	sudo wget $shib_idp_dowload_zip_url -O ${downloads_dir}/${shib_idp_zip}
+fi
+cd $downloads_dir
+if [ ! -d $shib_idp_folder ]; then 
+	sudo unzip $shib_idp_zip
+fi
+sudo mv $shib_idp_folder /usr/local/src/ 
 cd /usr/local/src/$shib_idp_folder
 sudo chmod u+x install.sh
 sudo mkdir /usr/share/tomcat6/endorsed/
