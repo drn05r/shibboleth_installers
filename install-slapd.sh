@@ -7,7 +7,6 @@ if [ ! -f "${basedir}/settings.sh" ]; then
         exit 1;
 fi
 source $basedir/settings.sh
-source $basedir/config.sh $tempdir
 echo "+-----------------------+"
 echo "| LDAP Server Installer |"
 echo "+-----------------------+"
@@ -15,6 +14,7 @@ echo ""
 echo "Installing and configuring LDAP server";
 sudo apt-get update  || { echo "Failed to update APT package listing. Aborting..."; exit 2; }
 sudo apt-get install -y debconf-utils ldap-utils
+source $basedir/config.sh $tempdir
 
 sudo su -c "echo slapd slapd/internal/adminpw password `echo "'"``echo ${ldap_admin_password}``echo "'"` | debconf-set-selections"
 sudo su -c "echo slapd slapd/password1 password `echo "'"``echo ${ldap_admin_password}``echo "'"` | debconf-set-selections"
@@ -32,7 +32,7 @@ sudo ldapadd -x -D ${ldap_bind_dn} -f ${tempdir}/organizational_units.ldif -w "$
 #sudo auth-client-config -t nss -p lac_ldap
 #sudo pam-auth-update
 echo "Installing LDAP scripts"
-sudo apt-get install ldapscripts
+sudo apt-get install -y ldapscripts
 sudo cp ${tempdir}/ldapscripts.conf /etc/ldapscripts/
 sudo cp ${tempdir}/runtime.debian /usr/share/ldapscripts/
 sudo sh -c "echo -n '${ldap_admin_password}' > /etc/ldapscripts/ldapscripts.passwd"
