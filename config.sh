@@ -4,6 +4,8 @@ basedir=`cd ${d}; pwd`
 tempdir=$1
 source $basedir/settings.sh
 
+JAVA_HOME=/usr/lib/jvm/java-6-openjdk
+
 read -d '' etc_profile_1 <<"EOF"
 JAVA_HOME=/usr/lib/jvm/java-6-openjdk
 export JAVA_HOME

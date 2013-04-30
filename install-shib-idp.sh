@@ -40,7 +40,7 @@ echo "$tomcat_server_xml_1" >> $tempdir/server.xml
 sudo mv $tempdir/server.xml /etc/tomcat6/server.xml
 
 
-echo "Installing Shibboleth IdP"
+echo "Installing Shibboleth Identity Provider"
 cd $tempdir
 shib_idp_download_url="http://shibboleth.net/downloads/identity-provider/"
 shib_idp_folder="shibboleth-identityprovider-${shib_idp_version}"
@@ -65,7 +65,7 @@ if [ "$jdbc_file_type" != "jar" ]; then
 	exit 1
 fi
 sudo cp ${downloads_dir}/${jdbc_file} /usr/local/src/${shib_idp_folder}/lib/
-sudo cp ${tempdir}/expect.sh
+sudo cp ${tempdir}/expect.sh /usr/local/src/${shib_idp_folder}/
 cd /usr/local/src/${shib_idp_folder}/
 sudo chmod ug+x expect.sh
 sudo ./expect.sh
