@@ -20,27 +20,28 @@ if [ -z "$jdbc_file" ]; then
 fi	
 cd $tempdir
 
-echo "Installing Prerequisites"
+echo "[`date +%H:%M:%S`] Installing Prerequisites"
 sudo apt-get update
 sudo apt-get install -y openssl ntp apache2 unzip expect
 
 
-echo "Installing Java"
+echo "[`date +%H:%M:%S`] Installing Java"
 sudo apt-get install -y openjdk-6-jre-headless
 cp /etc/profile $tempdir
-echo "$etc_profile_1" >> $tempdir/profile
-sudo cp $tempdir/profile /etc/
-eval "$etc_profile_1"
+echo "$etc_profile_1" > $tempdir/java_home
+sudo cp $tempdir/java_home /etc/profile.d/
 
 
-echo "Installing Tomcat"
+echo "[`date +%H:%M:%S`] Installing Tomcat"
 sudo apt-get install -y tomcat6
-sudo cat /etc/tomcat6/server.xml | sed -e 's/autoDeploy="true"/autoDeploy="false"/' > $tempdir/server.xml
-echo "$tomcat_server_xml_1" >> $tempdir/server.xml
-sudo mv $tempdir/server.xml /etc/tomcat6/server.xml
+cp /etc/default/tomcat6 ${tempdir}
+CATALINA_HOME="/usr/share/tomcat6"
+sudo mkdir -p ${CATALINA_HOME}/shared/classes
+sudo mkdir -p ${CATALINA_HOME}/server/classes
+sudo chown -R tomcat6:tomcat6 ${CATALINA_HOME}/server ${CATALINA_HOME}/shared
 
 
-echo "Installing Shibboleth Identity Provider"
+echo "[`date +%H:%M:%S`] Installing Shibboleth Identity Provider"
 cd $tempdir
 shib_idp_download_url="http://shibboleth.net/downloads/identity-provider/"
 shib_idp_folder="shibboleth-identityprovider-${shib_idp_version}"
@@ -69,16 +70,17 @@ sudo cp ${tempdir}/expect.sh /usr/local/src/${shib_idp_folder}/
 cd /usr/local/src/${shib_idp_folder}/
 sudo chmod ug+x expect.sh
 sudo ./expect.sh
-sudo ln -s /opt/shibboleth-idp/logs /var/log/shibboleth
+sudo ln -s ${shib_idp_home}/logs /var/log/shibboleth
 cp /etc/profile $tempdir
-echo "$etc_profile_2" >> $tempdir/profile
-sudo cp $tempdir/profile /etc/
-cp /etc/tomcat6/Catalina/localhost/idp.xml $tempdir
+echo "$etc_profile_2" > $tempdir/idp_home
+sudo cp $tempdir/idp_home /etc/profile.d/
+sudo cp /etc/tomcat6/Catalina/localhost/idp.xml $tempdir
 echo "$idp_xml" >> $tempdir/idp.xml
 sudo cp $tempdir/idp.xml /etc/tomcat6/Catalina/localhost/
+sudo chgrp tomcat6 /etc/tomcat6/Catalina/localhost/idp.xml
 
 
-echo "Installing MySQL"
+echo "[`date +%H:%M:%S`] Installing MySQL"
 mysql_server_pkg=`apt-cache search mysql-server | grep -o "^mysql-server-[0-9][^ ]*"`
 sudo su -c "echo ${mysql_server_pkg} mysql-server/root_password password `echo "'"``echo ${mysql_root_password}``echo "'"` | debconf-set-selections"
 sudo su -c "echo ${mysql_server_pkg} mysql-server/root_password_again password `echo "'"``echo ${mysql_root_password}``echo "'"` | debconf-set-selections" 
@@ -86,7 +88,7 @@ sudo apt-get install -y mysql-server mysql-client
 mysql -u root -p${mysql_root_password} < ${tempdir}/mysql_setup.sql
 
 
-echo "Setting up SSL certificates"
+echo "[`date +%H:%M:%S`] Setting up SSL certificates"
 cd $tempdir
 openssl genrsa -out ${server_for_ssl}.key 2048
 openssl req -new -nodes -subj "${ssl_subject}" -key ${server_for_ssl}.key -out ${server_for_ssl}.csr
@@ -95,16 +97,14 @@ sudo cp ${server_for_ssl}.key /etc/ssl/private/
 sudo cp ${server_for_ssl}.crt /etc/ssl/certs/
  
 
-echo "Setting up User Authentication"
-cp /opt/shibboleth-idp/conf/login.config $tempdir
-echo "$shib_idp_login_config" >> $tempdir/login.config
-sudo cp $tempdir/login.config /opt/shibboleth-idp/conf/
-cp /etc/tomcat6/server.xml $tempdir
-echo "$tomcat_server_xml_2" >> $tempdir/server.xml
-sudo cp $tempdir/server.xml
+echo "[`date +%H:%M:%S`] Setting up user authentication and configuring Tomcat"
+sudo cp $tempdir/login.config ${shib_idp_home}/conf/
+echo $etc_default_tomcat6 >> ${tempdir}/tomcat6
+sudo cp ${tempdir}/tomcat6 /etc/default/
+sudo cp ${tempdir}/server.xml /etc/tomcat6/
 
 
-echo "Configuring Apache"
+echo "[`date +%H:%M:%S`] Configuring Apache"
 sudo cp ${server_for_ssl}.key /etc/ssl/private/
 sudo cp ${server_for_ssl}.crt /etc/ssl/certs/
 cat /etc/apache2/conf.d/security | sed "s/ServerTokens OS/ServerTokens Prod/" > $tempdir/security
@@ -116,12 +116,34 @@ sudo a2enmod proxy_ajp
 cp /etc/apache2/ports.conf ${tempdir}
 echo "$apache_ports_config" >> ${tempdir}/ports.conf
 sudo cp ${tempdir}/ports.conf /etc/apache2/
+
+
+echo "[`date +%H:%M:%S`] Configuring Shibboleth Identity Provider"
+sudo chown root ${shib_idp_home}/credentials/idp.key
+sudo chgrp tomcat6 ${shib_idp_home}/credentials/idp.{key,crt}
+sudo chmod 440 ${shib_idp_home}/credentials/idp.key
+sudo chmod 644 ${shib_idp_home}/credentials/idp.crt
+sudo cat ${shib_idp_home}/conf/handler.xml | grep -v "</ph:ProfileHandlerGroup>" > ${tempdir}/handler.xml
+echo "${handler_xml}" >> ${tempdir}/handler.xml
+sudo cp ${tempdir}/handler.xml ${shib_idp_home}/conf/
+sudo cat /usr/local/src/${shib_idp_folder}/src/main/webapp/WEB-INF/web.xml | sed "s@${web_xml_allowed_ips}@<param-value>127.0.0.1/32 ::1/128 ${shib_idp_allowed_ips}</param-value>@" > ${tempdir}/web.xml
+sudo cp ${tempdir}/web.xml /usr/local/src/$shib_idp_folder/src/main/webapp/WEB-INF/
+sudo cat /usr/local/src/$shib_idp_folder/src/installer/resources/conf-tmpl/relying-party.xml | sed "s@\\\$IDP_HOME\\\$@${shib_idp_home}@g" | sed "s@\\\$IDP_ENTITY_ID\\\$@https://${server_for_ssl}/idp/shibboleth@g" > ${tempdir}/relying-party.xml
+sudo cp ${tempdir}/relying-party.xml ${shib_idp_home}/conf/
+cd ${shib_idp_home}
+sudo chown -R tomcat6 logs metadata  
+sudo chgrp -R tomcat6 conf credentials logs metadata war lib
+sudo chown tomcat6 conf/attribute-filter.xml
+sudo chmod 664 conf/attribute-filter.xml
+sudo chmod 750 lib war conf credentials
+sudo chmod 775 logs metadata
+sudo cp ${tempdir}/expect2.sh /usr/local/src/${shib_idp_folder}/
+cd /usr/local/src/${shib_idp_folder}/
+sudo chmod ug+x expect2.sh
+sudo ./expect2.sh
+
+sudo service tomcat6 restart
+sleep 15
 sudo service apache2 restart
 
-
-echo "Configuring Shibboleth Identity Provider"
-sudo chown root /opt/shibboleth-idp/credentials/idp.key
-sudo chgrp tomcat6 /opt/shibboleth-idp/credentials/idp.{key,crt}
-sudo chmod 440 /opt/shibboleth-idp/credentials/idp.key
-sudo chmod 644 /opt/shibboleth-idp/credentials/idp.crt
-
+echo -e "\n\n[`date +%H:%M:%S`] Shibboleth Identity Provider installed successfully.  Goodbye.\n"

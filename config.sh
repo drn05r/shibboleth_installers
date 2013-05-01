@@ -11,52 +11,79 @@ JAVA_HOME=/usr/lib/jvm/java-6-openjdk
 export JAVA_HOME
 EOF
 
-read -d '' etc_profile_2 <<"EOF"
-IDP_HOME=/opt/shibboleth-idp
-export IDP_HOME
+etc_profile_2="IDP_HOME=${shib_idp_home}
+export IDP_HOME"
 EOF
 
-read -d '' tomcat_server_xml_1 <<"EOF"
+read -d '' etc_default_tomcat6 <<"EOF"
 JAVA_OPTS="-Djava.awt.headless=true -Xmx512M -XX:MaxPermSize=128M -Dcom.sun.security.enableCRLDP=true"
 EOF
 
-read -d '' tomcat_server_xml_2 <<"EOF"
-<!-- Define an AJP 1.3 Connector on port 8009 -->
-    <Connector port="8009" address="127.0.0.1"
-               enableLookups="false" redirectPort="443"
-               protocol="AJP/1.3"
-               tomcatAuthentication="false" />
+idp_xml="<Context
+    docBase=\"${shib_idp_home}/war/idp.war\"
+    privileged=\"true\"
+    antiResourceLocking=\"false\"
+    antiJARLocking=\"false\"
+    unpackWAR=\"false\"
+    swallowOutput=\"true\"
+    cookies=\"false\" />"
 
-  <!--  
-    <Listener className="org.apache.catalina.core.AprLifecycleListener" SSLEngine="on" />
-  -->
-EOF
-
-read -d '' idp_xml <<"EOF"
-<Context
-    docBase="/opt/shibboleth-idp/war/idp.war"
-    privileged="true"
-    antiResourceLocking="false"
-    antiJARLocking="false"
-    unpackWAR="false"
-    swallowOutput="true"
-    cookies="false" />
-EOF
-
-read -d '' shib_idp_login_config <<"EOF"
+cat <<EOF > $tempdir/login.config
 ShibUserPassAuth {
     
 // Example LDAP authentication
    edu.vt.middleware.ldap.jaas.LdapLoginModule required
-      ldapUrl="${ldap_url}"
-      baseDn="${ldap_base_dn}"
-      bindDn="${ldap_bind_dn}"
-      bindCredential="${ldap_admin_password}";
+      ldapUrl=\"${ldap_url}\"
+      baseDn=\"${ldap_people_base_dn}\"
+      bindDn=\"${ldap_bind_dn}\"
+      bindCredential=\"${ldap_admin_password}\";
 };
 EOF
 
+#cat <<EOF > $tempdir/login.config
+#ShibUserPassAuth {
+#   
+#   edu.vt.middleware.ldap.jaas.LdapLoginModule required
+#      ldapUrl=\"ldap://${ldap_server}:389\"
+#      baseDn=\"${ldap_people_base_dn}\"
+#      bindDn=\"${ldap_bind_dn}\"
+#      bindCredential=\"${ldap_admin_password}\"
+#      ssl=\"false\"
+#      tls=\"false\"
+#      userFilter=\"uid={0}\";
+#};
+#EOF
+
 read -d '' apache_ports_config <<"EOF"
 Listen 8443
+EOF
+
+handler_xml="    <ph:LoginHandler xsi:type=\"ph:UsernamePassword\" 
+                  jaasConfigurationLocation=\"file://${shib_idp_home}/conf/login.config\">
+        <ph:AuthenticationMethod>urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport</ph:AuthenticationMethod>
+        <ph:AuthenticationMethod>urn:oasis:names:tc:SAML:2.0:ac:classes:unspecified</ph:AuthenticationMethod>
+    </ph:LoginHandler>
+
+</ph:ProfileHandlerGroup>"
+
+read -d '' web_xml_allowed_ips <<"EOF"
+<param-value>127.0.0.1/32 ::1/128</param-value>
+EOF
+
+cat <<EOF > $tempdir/expect2.sh
+#!/usr/bin/expect
+spawn env IdpCertLifetime=3 JAVA_HOME=${JAVA_HOME} ./install.sh
+expect "Buildfile: src/installer/resources/build.xml
+
+install:
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+Be sure you have read the installation/upgrade instructions on the Shibboleth website before proceeding.
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+Where should the Shibboleth Identity Provider software be installed? \[/opt/shibboleth-idp\]"
+send "${shib_idp_home}\r"
+expect "The directory '/opt/shibboleth-idp' already exists.  Would you like to overwrite this Shibboleth configuration? (yes, \[no\])"
+send "no\r"
+interact
 EOF
 
 cat <<EOF > $tempdir/expect.sh
@@ -69,13 +96,14 @@ install:
 Be sure you have read the installation/upgrade instructions on the Shibboleth website before proceeding.
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 Where should the Shibboleth Identity Provider software be installed? \[/opt/shibboleth-idp\]"
-send "/opt/shibboleth-idp\r"
+send "${shib_idp_home}\r"
 expect "What is the fully qualified hostname of the Shibboleth Identity Provider server? \[default: idp.example.org\]"
 send "${server_for_ssl}\r"
 expect "A keystore is about to be generated for you. Please enter a password that will be used to protect it."
 send "${shib_idp_keystore_password}\r"
 interact
 EOF
+
 
 cat <<EOF > $tempdir/mysql_setup.sql 
 SET NAMES 'utf8';
@@ -148,8 +176,8 @@ DocumentRoot /var/www
 SSLEngine On
 SSLCipherSuite HIGH:MEDIUM:!ADH
 SSLProtocol all -SSLv2
-SSLCertificateFile /opt/shibboleth-idp/credentials/idp.crt
-SSLCertificateKeyFile /opt/shibboleth-idp/credentials/idp.key
+SSLCertificateFile ${shib_idp_home}/credentials/idp.crt
+SSLCertificateKeyFile ${shib_idp_home}/credentials/idp.key
 SSLVerifyClient optional_no_ca
 SSLVerifyDepth 10
     
@@ -224,7 +252,7 @@ cat <<EOF > ${tempdir}/attribute-resolver.xml
         <resolver:AttributeEncoder xsi:type="enc:SAML2ScopedString" name="urn:oid:1.3.6.1.4.1.5923.1.1.1.6" friendlyName="eduPersonPrincipalName" />
     </resolver:AttributeDefinition>
 
-    <resolver:AttributeDefinition xsi:type="ad:Scoped" id="eduPersonScopedAffiliation" scope="{$ldap_domain}" sourceAttributeID="eduPersonAffiliation">
+    <resolver:AttributeDefinition xsi:type="ad:Scoped" id="eduPersonScopedAffiliation" scope="${ldap_domain}" sourceAttributeID="eduPersonAffiliation">
         <resolver:Dependency ref="myLDAP" />
         <resolver:AttributeEncoder xsi:type="enc:SAML1ScopedString" name="urn:mace:dir:attribute-def:eduPersonScopedAffiliation" />
         <resolver:AttributeEncoder xsi:type="enc:SAML2ScopedString" name="urn:oid:1.3.6.1.4.1.5923.1.1.1.9" friendlyName="eduPersonScopedAffiliation" />
@@ -285,6 +313,37 @@ cat <<EOF > ${tempdir}/attribute-resolver.xml
     <resolver:PrincipalConnector xsi:type="pc:Transient" id="saml2Transient" nameIDFormat="urn:oasis:names:tc:SAML:2.0:nameid-format:transient"/>
 
 </resolver:AttributeResolver>
+EOF
+
+cat <<EOF > ${tempdir}/server.xml
+<?xml version='1.0' encoding='utf-8'?>
+<Server port="8005" shutdown="SHUTDOWN">
+  <Listener className="org.apache.catalina.core.JasperListener" />
+  <Listener className="org.apache.catalina.core.JreMemoryLeakPreventionListener" />
+  <Listener className="org.apache.catalina.mbeans.ServerLifecycleListener" />
+  <Listener className="org.apache.catalina.mbeans.GlobalResourcesLifecycleListener" />
+  <GlobalNamingResources>
+    <Resource name="UserDatabase" auth="Container"
+              type="org.apache.catalina.UserDatabase"
+              description="User database that can be updated and saved"
+              factory="org.apache.catalina.users.MemoryUserDatabaseFactory"
+              pathname="conf/tomcat-users.xml" />
+  </GlobalNamingResources>
+  <Service name="Catalina">
+    <Connector port="8009" address="127.0.0.1"
+               enableLookups="false" redirectPort="443"
+               protocol="AJP/1.3"
+               tomcatAuthentication="false" />
+    <Engine name="Catalina" defaultHost="localhost">
+      <Realm className="org.apache.catalina.realm.UserDatabaseRealm"
+             resourceName="UserDatabase"/>
+      <Host name="localhost"  appBase="webapps"
+            unpackWARs="true" autoDeploy="false"
+            xmlValidation="false" xmlNamespaceAware="false">
+      </Host>
+    </Engine>
+  </Service>
+</Server>
 EOF
 
 cat <<EOF > ${tempdir}/organizational_units.ldif
