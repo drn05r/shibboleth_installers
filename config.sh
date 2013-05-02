@@ -6,27 +6,44 @@ source $basedir/settings.sh
 
 JAVA_HOME=/usr/lib/jvm/java-6-openjdk
 
-read -d '' etc_profile_1 <<"EOF"
+cat <<EOF > $tempdir/java_home
 JAVA_HOME=/usr/lib/jvm/java-6-openjdk
 export JAVA_HOME
 EOF
 
-etc_profile_2="IDP_HOME=${shib_idp_home}
-export IDP_HOME"
+cat <<EOF > $tempdir/ds_home
+DS_HOME=${shib_ds_home}
+export IDP_HOME
+EOF
+
+cat <<EOF > $tempdir/idp_home
+etc_profile_idp_home="IDP_HOME=${shib_idp_home}
+export IDP_HOME
 EOF
 
 read -d '' etc_default_tomcat6 <<"EOF"
 JAVA_OPTS="-Djava.awt.headless=true -Xmx512M -XX:MaxPermSize=128M -Dcom.sun.security.enableCRLDP=true"
 EOF
 
-idp_xml="<Context
-    docBase=\"${shib_idp_home}/war/idp.war\"
-    privileged=\"true\"
-    antiResourceLocking=\"false\"
-    antiJARLocking=\"false\"
-    unpackWAR=\"false\"
-    swallowOutput=\"true\"
-    cookies=\"false\" />"
+cat <<EOF > $tempdir/ds.xml
+<Context
+    docBase="${shib_ds_home}/war/discovery.war"
+    privileged="true"
+    antiResourceLocking="false"
+    antiJARLocking="false"
+    unpackWAR="false" />
+EOF
+
+cat <<EOF > $tempdir/idp.xml
+<Context
+    docBase="${shib_idp_home}/war/idp.war"
+    privileged="true"
+    antiResourceLocking="false"
+    antiJARLocking="false"
+    unpackWAR="false"
+    swallowOutput="true"
+    cookies="false" />
+EOF
 
 cat <<EOF > $tempdir/login.config
 ShibUserPassAuth {
@@ -54,10 +71,6 @@ EOF
 #};
 #EOF
 
-read -d '' apache_ports_config <<"EOF"
-Listen 8443
-EOF
-
 handler_xml="    <ph:LoginHandler xsi:type=\"ph:UsernamePassword\" 
                   jaasConfigurationLocation=\"file://${shib_idp_home}/conf/login.config\">
         <ph:AuthenticationMethod>urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport</ph:AuthenticationMethod>
@@ -70,7 +83,49 @@ read -d '' web_xml_allowed_ips <<"EOF"
 <param-value>127.0.0.1/32 ::1/128</param-value>
 EOF
 
-cat <<EOF > $tempdir/expect2.sh
+cat <<EOF > $tempdir/expect_ds.sh
+#!/usr/bin/expect
+spawn env JAVA_HOME=${JAVA_HOME} ./install.sh
+expect "Buildfile: src/installer/resources/build.xml
+
+install:
+Where should the Shibboleth Discovery Service software be installed? \[/opt/shibboleth-ds\]"
+send "${shib_ds_home}\r"
+interact
+EOF
+
+cat <<EOF > $tempdir/expect_ds2.sh
+#!/usr/bin/expect
+spawn env JAVA_HOME=${JAVA_HOME} ./install.sh
+expect "Buildfile: src/installer/resources/build.xml
+
+install:
+Where should the Shibboleth Discovery Service software be installed? \[/opt/shibboleth-ds\]"
+send "${shib_ds_home}\r"
+expect "The directory '/opt/shibboleth-ds' already exists.  Would you like to overwrite your existing configuration? (yes, \[no\])"
+send "no\r"
+interact
+EOF
+
+cat <<EOF > $tempdir/expect_idp.sh
+#!/usr/bin/expect
+spawn env IdpCertLifetime=3 JAVA_HOME=${JAVA_HOME} ./install.sh
+expect "Buildfile: src/installer/resources/build.xml
+
+install:
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+Be sure you have read the installation/upgrade instructions on the Shibboleth website before proceeding.
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+Where should the Shibboleth Identity Provider software be installed? \[/opt/shibboleth-idp\]"
+send "${shib_idp_home}\r"
+expect "What is the fully qualified hostname of the Shibboleth Identity Provider server? \[default: idp.example.org\]"
+send "${shib_idp_server}\r"
+expect "A keystore is about to be generated for you. Please enter a password that will be used to protect it."
+send "${shib_idp_keystore_password}\r"
+interact
+EOF
+
+cat <<EOF > $tempdir/expect_idp2.sh
 #!/usr/bin/expect
 spawn env IdpCertLifetime=3 JAVA_HOME=${JAVA_HOME} ./install.sh
 expect "Buildfile: src/installer/resources/build.xml
@@ -86,23 +141,6 @@ send "no\r"
 interact
 EOF
 
-cat <<EOF > $tempdir/expect.sh
-#!/usr/bin/expect
-spawn env IdpCertLifetime=3 JAVA_HOME=${JAVA_HOME} ./install.sh
-expect "Buildfile: src/installer/resources/build.xml
-
-install:
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-Be sure you have read the installation/upgrade instructions on the Shibboleth website before proceeding.
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-Where should the Shibboleth Identity Provider software be installed? \[/opt/shibboleth-idp\]"
-send "${shib_idp_home}\r"
-expect "What is the fully qualified hostname of the Shibboleth Identity Provider server? \[default: idp.example.org\]"
-send "${server_for_ssl}\r"
-expect "A keystore is about to be generated for you. Please enter a password that will be used to protect it."
-send "${shib_idp_keystore_password}\r"
-interact
-EOF
 
 
 cat <<EOF > $tempdir/mysql_setup.sql 
@@ -139,10 +177,10 @@ IDENTIFIED BY 'demo';
 FLUSH PRIVILEGES;
 EOF
 
-cat <<EOF > ${tempdir}/${server_for_ssl}
-ServerName ${server_for_ssl}
+cat <<EOF > ${tempdir}/${shib_idp_server}
+ServerName ${shib_idp_server}
 <VirtualHost _default_:443>
-ServerName ${server_for_ssl}:443
+ServerName ${shib_idp_server}:443
 ServerAdmin root@localhost
 
 DocumentRoot /var/www
@@ -150,8 +188,8 @@ DocumentRoot /var/www
 SSLEngine On
 SSLCipherSuite HIGH:MEDIUM:!ADH
 SSLProtocol all -SSLv2
-SSLCertificateFile /etc/ssl/certs/${server_for_ssl}.crt
-SSLCertificateKeyFile /etc/ssl/private/${server_for_ssl}.key
+SSLCertificateFile /etc/ssl/certs/${shib_idp_server}.crt
+SSLCertificateKeyFile /etc/ssl/private/${shib_idp_server}.key
 #SSLCertificateChainFile /etc/ssl/certs/qvsslica.crt.pem
     
 <Proxy ajp://localhost:8009>
@@ -168,7 +206,7 @@ BrowserMatch "MSIE [17-9]" ssl-unclean-shutdown
 
 </VirtualHost>
 <VirtualHost _default_:8443>
-ServerName ${server_for_ssl}:8443
+ServerName ${shib_idp_server}:8443
 ServerAdmin root@localhost
 
 DocumentRoot /var/www
@@ -195,6 +233,37 @@ BrowserMatch "MSIE [17-9]" ssl-unclean-shutdown
 
 </VirtualHost>
 EOF
+
+cat <<EOF > ${tempdir}/${shib_ds_server}
+ServerName ${shib_ds_server}
+<VirtualHost _default_:443>
+ServerName ${shib_ds_server}:443
+ServerAdmin root@localhost
+
+DocumentRoot /var/www
+
+SSLEngine On
+SSLCipherSuite HIGH:MEDIUM:!ADH
+SSLProtocol all -SSLv2
+SSLCertificateFile /etc/ssl/certs/${shib_ds_server}.crt
+SSLCertificateKeyFile /etc/ssl/private/${shib_ds_server}.key
+#SSLCertificateChainFile /etc/ssl/certs/qvsslica.crt.pem
+    
+<Proxy ajp://localhost:8009>
+    Allow from all
+</Proxy>
+    
+ProxyPass /ds ajp://localhost:8009/ds retry=5
+
+BrowserMatch "MSIE [2-6]" \
+             nokeepalive ssl-unclean-shutdown \
+             downgrade-1.0 force-response-1.0
+# MSIE 7 and newer should be able to use keepalive
+BrowserMatch "MSIE [17-9]" ssl-unclean-shutdown
+
+</VirtualHost>
+EOF
+
 
 random_string_32=`cat /dev/urandom | base64 | tr -dc "[:alnum:]" | head -c32`
 
@@ -384,3 +453,10 @@ LDAPPASSWDBIN=`which ldappasswd`
 GETENTPWCMD="getent passwd"
 GETENTGRCMD="getent group"
 EOF
+
+datetime_10_years=`date +%Y-%m-%dT%H:%M:%SZ -ud "1970-01-01 + \`expr \\\`date +%s\\\` + \\\`expr 86400 \\\\* 3650\\\`\` seconds"`
+
+cat <<EOF > ${tempdir}/sites.xml
+<EntitiesDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:elab="http://eduserv.org.uk/labels" xmlns:idpdisc="urn:oasis:names:tc:SAML:profiles:SSO:idp-discovery-protocol" xmlns:init="urn:oasis:names:tc:SAML:profiles:SSO:request-init" xmlns:mdrpi="urn:oasis:names:tc:SAML:metadata:rpi" xmlns:mdui="urn:oasis:names:tc:SAML:metadata:ui" xmlns:shibmd="urn:mace:shibboleth:metadata:1.0" xmlns:wayf="http://sdss.ac.uk/2006/06/WAYF" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" ID="my20130501T155342Z" Name="http://${shib_ds_server}" validUntil="${datetime_10_years}">
+EOF
+

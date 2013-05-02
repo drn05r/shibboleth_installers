@@ -24,21 +24,31 @@ echo "[`date +%H:%M:%S`] Installing Prerequisites"
 sudo apt-get update
 sudo apt-get install -y openssl ntp apache2 unzip expect
 
+if [ `grep ${shib_idp_server} /etc/hosts | grep "^127.0.1.1" | wc -l` -eq 0 ]; then
+	echo "[`date +%H:%M:%S`] Adding Shibboleth Identity Provider hostname to local hosts file."
+	cat /etc/hosts | sed "s/^\(127.0.1.1.*\)$/\1 ${shib_idp_server}/g" > ${tempdir}/hosts
+	sudo cp ${tempdir}/hosts /etc/
+fi
 
-echo "[`date +%H:%M:%S`] Installing Java"
-sudo apt-get install -y openjdk-6-jre-headless
-cp /etc/profile $tempdir
-echo "$etc_profile_1" > $tempdir/java_home
-sudo cp $tempdir/java_home /etc/profile.d/
+JAVA_HOME="/usr/lib/jvm/java-6-openjdk"
+if [ ! -f ${JAVA_HOME} ]; then
+        echo "[`date +%H:%M:%S`] Installing Java"
+        sudo apt-get install -y openjdk-6-jre-headless
+        cp /etc/profile $tempdir
+        echo "$etc_profile_java_home" > $tempdir/java_home
+        sudo cp $tempdir/java_home /etc/profile.d/
+fi
 
 
-echo "[`date +%H:%M:%S`] Installing Tomcat"
-sudo apt-get install -y tomcat6
-cp /etc/default/tomcat6 ${tempdir}
 CATALINA_HOME="/usr/share/tomcat6"
-sudo mkdir -p ${CATALINA_HOME}/shared/classes
-sudo mkdir -p ${CATALINA_HOME}/server/classes
-sudo chown -R tomcat6:tomcat6 ${CATALINA_HOME}/server ${CATALINA_HOME}/shared
+if [ ! -d ${CATALINA_HOME} ]; then
+        echo "[`date +%H:%M:%S`] Installing Tomcat"
+        sudo apt-get install -y tomcat6
+        cp /etc/default/tomcat6 ${tempdir}
+        sudo mkdir -p ${CATALINA_HOME}/shared/classes
+        sudo mkdir -p ${CATALINA_HOME}/server/classes
+        sudo chown -R tomcat6:tomcat6 ${CATALINA_HOME}/server ${CATALINA_HOME}/shared
+fi
 
 
 echo "[`date +%H:%M:%S`] Installing Shibboleth Identity Provider"
@@ -46,7 +56,7 @@ cd $tempdir
 shib_idp_download_url="http://shibboleth.net/downloads/identity-provider/"
 shib_idp_folder="shibboleth-identityprovider-${shib_idp_version}"
 shib_idp_zip="${shib_idp_folder}-bin.zip"
-shib_idp_dowload_zip_url="${shib_idp_download_url}${shib_idp_version}/${shib_idp_zip}"
+shib_idp_download_zip_url="${shib_idp_download_url}${shib_idp_version}/${shib_idp_zip}"
 if [ ! -f ${downloads_dir}/${shib_idp_zip} ]; then
 	sudo wget $shib_idp_dowload_zip_url -O ${downloads_dir}/${shib_idp_zip}
 fi
@@ -57,7 +67,9 @@ fi
 sudo mv $shib_idp_folder /usr/local/src/ 
 cd /usr/local/src/$shib_idp_folder
 sudo chmod u+x install.sh
-sudo mkdir /usr/share/tomcat6/endorsed/
+if [ ! -d /usr/share/tomcat6/endorsed/ ]; then
+        sudo mkdir /usr/share/tomcat6/endorsed/
+fi
 sudo cp ./endorsed/*.jar /usr/share/tomcat6/endorsed/
 cd /usr/local/src/
 jdbc_file_type=`echo $jdbc_file | awk 'BEGIN{FS=".";ORS=""}{ print $NF }'`
@@ -66,16 +78,12 @@ if [ "$jdbc_file_type" != "jar" ]; then
 	exit 1
 fi
 sudo cp ${downloads_dir}/${jdbc_file} /usr/local/src/${shib_idp_folder}/lib/
-sudo cp ${tempdir}/expect.sh /usr/local/src/${shib_idp_folder}/
+sudo cp ${tempdir}/expect_idp.sh /usr/local/src/${shib_idp_folder}/
 cd /usr/local/src/${shib_idp_folder}/
-sudo chmod ug+x expect.sh
-sudo ./expect.sh
+sudo chmod ug+x expect_idp.sh
+sudo ./expect_idp.sh
 sudo ln -s ${shib_idp_home}/logs /var/log/shibboleth
-cp /etc/profile $tempdir
-echo "$etc_profile_2" > $tempdir/idp_home
 sudo cp $tempdir/idp_home /etc/profile.d/
-sudo cp /etc/tomcat6/Catalina/localhost/idp.xml $tempdir
-echo "$idp_xml" >> $tempdir/idp.xml
 sudo cp $tempdir/idp.xml /etc/tomcat6/Catalina/localhost/
 sudo chgrp tomcat6 /etc/tomcat6/Catalina/localhost/idp.xml
 
@@ -88,34 +96,46 @@ sudo apt-get install -y mysql-server mysql-client
 mysql -u root -p${mysql_root_password} < ${tempdir}/mysql_setup.sql
 
 
-echo "[`date +%H:%M:%S`] Setting up SSL certificates"
-cd $tempdir
-openssl genrsa -out ${server_for_ssl}.key 2048
-openssl req -new -nodes -subj "${ssl_subject}" -key ${server_for_ssl}.key -out ${server_for_ssl}.csr
-openssl x509 -req -days 3650 -in ${server_for_ssl}.csr -signkey ${server_for_ssl}.key -out ${server_for_ssl}.crt
-sudo cp ${server_for_ssl}.key /etc/ssl/private/
-sudo cp ${server_for_ssl}.crt /etc/ssl/certs/
+if [ ! -f /etc/ssl/certs/${shib_idp_server}.crt ]; then
+        echo "[`date +%H:%M:%S`] Setting up SSL certificates"
+        cd $tempdir
+        openssl genrsa -out ${shib_idp_server}.key 2048
+        openssl req -new -nodes -subj "${shib_idp_ssl_subject}" -key ${shib_idp_server}.key -out ${shib_idp_server}.csr
+        openssl x509 -req -days 3650 -in ${shib_idp_server}.csr -signkey ${shib_idp_server}.key -out ${shib_id_server}.crt
+        sudo cp ${shib_idp_server}.key /etc/ssl/private/
+        sudo cp ${shib_idp_server}.crt /etc/ssl/certs/
+fi
  
 
 echo "[`date +%H:%M:%S`] Setting up user authentication and configuring Tomcat"
 sudo cp $tempdir/login.config ${shib_idp_home}/conf/
-echo $etc_default_tomcat6 >> ${tempdir}/tomcat6
-sudo cp ${tempdir}/tomcat6 /etc/default/
-sudo cp ${tempdir}/server.xml /etc/tomcat6/
+if [ `grep "$etc_default_tomcat6" /etc/default/tomcat6 | wc -l` -lt 1 ]; then
+        cat /etc/default/tomcat6 | grep -v "^JAVA_OPTS" > ${tempdir}/tomcat6
+        echo $etc_default_tomcat6 >> ${tempdir}/tomcat6
+        sudo cp ${tempdir}/tomcat6 /etc/default/
+        sudo cp ${tempdir}/server.xml /etc/tomcat6/
+fi
 
 
-echo "[`date +%H:%M:%S`] Configuring Apache"
-sudo cp ${server_for_ssl}.key /etc/ssl/private/
-sudo cp ${server_for_ssl}.crt /etc/ssl/certs/
-cat /etc/apache2/conf.d/security | sed "s/ServerTokens OS/ServerTokens Prod/" > $tempdir/security
-sudo cp $tempdir/security /etc/apache2/conf.d/
-sudo cp ${tempdir}/${server_for_ssl} /etc/apache2/sites-available/
-sudo a2ensite ${server_for_ssl}
-sudo a2enmod ssl
-sudo a2enmod proxy_ajp 
-cp /etc/apache2/ports.conf ${tempdir}
-echo "$apache_ports_config" >> ${tempdir}/ports.conf
-sudo cp ${tempdir}/ports.conf /etc/apache2/
+if [ ! -f /etc/apache2/sites-enabled/${shib_idp_server} ]; then
+        echo "[`date +%H:%M:%S`] Configuring Apache"
+        cat /etc/apache2/conf.d/security | sed "s/ServerTokens OS/ServerTokens Prod/" > $tempdir/security
+        sudo cp ${tempdir}/security /etc/apache2/conf.d/
+        sudo cp ${tempdir}/${shib_idp_server} /etc/apache2/sites-available/
+        sudo a2ensite ${shib_idp_server}
+        sudo a2enmod ssl
+        sudo a2enmod proxy_ajp
+        if [ `grep "Listen 8443" /etc/apache2/ports.conf | wc -l` -eq 0 ]; then
+                cp /etc/apache2/ports.conf ${tempdir}
+                echo "Listen 8443" >> ${tempdir}/ports.conf
+                sudo cp ${tempdir}/ports.conf /etc/apache2/
+        fi
+	if [ `grep "NameVirtualHost \*:443" /etc/apache2/ports.conf | wc -l` -eq 0 ]; then
+		cp /etc/apache2/ports.conf ${tempdir}
+                echo "NameVirtualHost *:443" >> ${tempdir}/ports.conf
+                sudo cp ${tempdir}/ports.conf /etc/apache2/
+        fi
+fi
 
 
 echo "[`date +%H:%M:%S`] Configuring Shibboleth Identity Provider"
@@ -126,9 +146,9 @@ sudo chmod 644 ${shib_idp_home}/credentials/idp.crt
 sudo cat ${shib_idp_home}/conf/handler.xml | grep -v "</ph:ProfileHandlerGroup>" > ${tempdir}/handler.xml
 echo "${handler_xml}" >> ${tempdir}/handler.xml
 sudo cp ${tempdir}/handler.xml ${shib_idp_home}/conf/
-sudo cat /usr/local/src/${shib_idp_folder}/src/main/webapp/WEB-INF/web.xml | sed "s@${web_xml_allowed_ips}@<param-value>127.0.0.1/32 ::1/128 ${shib_idp_allowed_ips}</param-value>@" > ${tempdir}/web.xml
+sudo cat /usr/local/src/${shib_idp_folder}/src/main/webapp/WEB-INF/web.xml | sed "s@${web_xml_allowed_ips}@<param-value>127.0.0.1/32 ::1/128 ${allowed_ips}</param-value>@" > ${tempdir}/web.xml
 sudo cp ${tempdir}/web.xml /usr/local/src/$shib_idp_folder/src/main/webapp/WEB-INF/
-sudo cat /usr/local/src/$shib_idp_folder/src/installer/resources/conf-tmpl/relying-party.xml | sed "s@\\\$IDP_HOME\\\$@${shib_idp_home}@g" | sed "s@\\\$IDP_ENTITY_ID\\\$@https://${server_for_ssl}/idp/shibboleth@g" > ${tempdir}/relying-party.xml
+sudo cat /usr/local/src/$shib_idp_folder/src/installer/resources/conf-tmpl/relying-party.xml | sed "s@\\\$IDP_HOME\\\$@${shib_idp_home}@g" | sed "s@\\\$IDP_ENTITY_ID\\\$@https://${shib_idp_server}/idp/shibboleth@g" > ${tempdir}/relying-party.xml
 sudo cp ${tempdir}/relying-party.xml ${shib_idp_home}/conf/
 cd ${shib_idp_home}
 sudo chown -R tomcat6 logs metadata  
@@ -137,13 +157,14 @@ sudo chown tomcat6 conf/attribute-filter.xml
 sudo chmod 664 conf/attribute-filter.xml
 sudo chmod 750 lib war conf credentials
 sudo chmod 775 logs metadata
-sudo cp ${tempdir}/expect2.sh /usr/local/src/${shib_idp_folder}/
+sudo cp ${tempdir}/expect_idp2.sh /usr/local/src/${shib_idp_folder}/
 cd /usr/local/src/${shib_idp_folder}/
-sudo chmod ug+x expect2.sh
-sudo ./expect2.sh
+sudo chmod ug+x expect_idp2.sh
+sudo ./expect_idp2.sh
 
 sudo service tomcat6 restart
-sleep 15
+echo "[`date +%H:%M:%S`] Sleeping for 30 seconds to allow Tomcat to initialise before restarting Apache."
+sleep 30
 sudo service apache2 restart
 
 echo -e "\n\n[`date +%H:%M:%S`] Shibboleth Identity Provider installed successfully.  Goodbye.\n"
