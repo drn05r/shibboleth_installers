@@ -46,30 +46,19 @@ cat <<EOF > $tempdir/idp.xml
 EOF
 
 cat <<EOF > $tempdir/login.config
-ShibUserPassAuth {
-    
-// Example LDAP authentication
+ShibUserPassAuth { 
    edu.vt.middleware.ldap.jaas.LdapLoginModule required
-      ldapUrl=\"${ldap_url}\"
-      baseDn=\"${ldap_people_base_dn}\"
-      bindDn=\"${ldap_bind_dn}\"
-      bindCredential=\"${ldap_admin_password}\";
+     host="${ldap_server}"
+     port="389"
+     ssl="false"
+     tls="false"
+     base="${ldap_people_base_dn}"
+     subtreeSearch="true"
+     userField="uid"
+     serviceUser="${ldap_bind_dn}"
+     serviceCredential="${ldap_admin_password}";
 };
 EOF
-
-#cat <<EOF > $tempdir/login.config
-#ShibUserPassAuth {
-#   
-#   edu.vt.middleware.ldap.jaas.LdapLoginModule required
-#      ldapUrl=\"ldap://${ldap_server}:389\"
-#      baseDn=\"${ldap_people_base_dn}\"
-#      bindDn=\"${ldap_bind_dn}\"
-#      bindCredential=\"${ldap_admin_password}\"
-#      ssl=\"false\"
-#      tls=\"false\"
-#      userFilter=\"uid={0}\";
-#};
-#EOF
 
 handler_xml="    <ph:LoginHandler xsi:type=\"ph:UsernamePassword\" 
                   jaasConfigurationLocation=\"file://${shib_idp_home}/conf/login.config\">
@@ -169,11 +158,11 @@ USE mysql;
 INSERT INTO user (Host,User,Password,Select_priv,
  Insert_priv,Update_priv,Delete_priv,Create_tmp_table_priv,
  Lock_tables_priv,Execute_priv) VALUES 
-  ('localhost','shibboleth',PASSWORD('$mysql_user_password'),
+  ('localhost','shibboleth',PASSWORD('${mysql_user_password}'),
    'Y','Y','Y','Y','Y','Y','Y');
 FLUSH PRIVILEGES;
 GRANT ALL ON shibboleth.* TO 'shibboleth'@'localhost'
-IDENTIFIED BY 'demo';
+IDENTIFIED BY '${mysql_user_password}';
 FLUSH PRIVILEGES;
 EOF
 
@@ -327,18 +316,13 @@ cat <<EOF > ${tempdir}/attribute-resolver.xml
         <resolver:AttributeEncoder xsi:type="enc:SAML2ScopedString" name="urn:oid:1.3.6.1.4.1.5923.1.1.1.9" friendlyName="eduPersonScopedAffiliation" />
     </resolver:AttributeDefinition>
 
-    <resolver:AttributeDefinition id="transientId" xsi:type="ad:TransientId">
-        <resolver:AttributeEncoder xsi:type="enc:SAML1StringNameIdentifier" nameFormat="urn:mace:shibboleth:1.0:nameIdentifier"/>
-        <resolver:AttributeEncoder xsi:type="enc:SAML2StringNameID" nameFormat="urn:oasis:names:tc:SAML:2.0:nameid-format:transient"/>
-    </resolver:AttributeDefinition>
-
     <!-- ========================================== -->
     <!--      Data Connectors                       -->
     <!-- ========================================== -->
 
    <resolver:DataConnector id="myLDAP" xsi:type="dc:LDAPDirectory" 
         ldapURL="ldap://${ldap_server}:389" 
-        baseDN="${ldap_server}" 
+        baseDN="${ldap_people_base_dn}" 
         principal="${ldap_bind_dn}"
         principalCredential="${ldap_admin_password}">
         <dc:FilterTemplate>
@@ -353,11 +337,11 @@ cat <<EOF > ${tempdir}/attribute-resolver.xml
                             sourceAttributeID="cn"
                             generatedAttributeID="StoredId"
                             salt="${random_string_32}" >
-      <resolver:Dependency ref="cn" />
-      <dc:ApplicationManagedConnection jdbcDriver="com.mysql.jdbc.Driver"
-                                 jdbcURL="jdbc:mysql://localhost:3306/shibstoreid"
-                                 jdbcUserName="shibboleth"
-                                 jdbcPassword="${mysql_user_password}" />
+    <resolver:Dependency ref="cn" />
+        <dc:ApplicationManagedConnection jdbcDriver="com.mysql.jdbc.Driver"
+                                         jdbcURL="jdbc:mysql://localhost:3306/shibboleth"
+                                         jdbcUserName="shibboleth"
+                                         jdbcPassword="${mysql_user_password}" />
     </resolver:DataConnector>
 
     <resolver:AttributeDefinition id="eduPersonTargetedID" xsi:type="ad:SAML2NameID" 
@@ -374,14 +358,216 @@ cat <<EOF > ${tempdir}/attribute-resolver.xml
         <resolver:AttributeEncoder xsi:type="enc:SAML2StringNameID" nameFormat="urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"/>
     </resolver:AttributeDefinition>
 
-    <!-- ========================================== -->
-    <!--      Principal Connectors                  -->
-    <!-- ========================================== -->
-    <resolver:PrincipalConnector xsi:type="pc:Transient" id="shibTransient" nameIDFormat="urn:mace:shibboleth:1.0:nameIdentifier"/>
-    <resolver:PrincipalConnector xsi:type="pc:Transient" id="saml1Unspec" nameIDFormat="urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified"/>
-    <resolver:PrincipalConnector xsi:type="pc:Transient" id="saml2Transient" nameIDFormat="urn:oasis:names:tc:SAML:2.0:nameid-format:transient"/>
-
 </resolver:AttributeResolver>
+EOF
+
+cat <<EOF > ${tempdir}/attribute-filter.xml
+<?xml version="1.0" encoding="UTF-8"?>
+
+<afp:AttributeFilterPolicyGroup id="ShibbolethFilterPolicy"
+                                xmlns:afp="urn:mace:shibboleth:2.0:afp" xmlns:basic="urn:mace:shibboleth:2.0:afp:mf:basic" 
+                                xmlns:saml="urn:mace:shibboleth:2.0:afp:mf:saml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+                                xsi:schemaLocation="urn:mace:shibboleth:2.0:afp classpath:/schema/shibboleth-2.0-afp.xsd
+                                                    urn:mace:shibboleth:2.0:afp:mf:basic classpath:/schema/shibboleth-2.0-afp-mf-basic.xsd
+                                                    urn:mace:shibboleth:2.0:afp:mf:saml classpath:/schema/shibboleth-2.0-afp-mf-saml.xsd">
+
+    <afp:AttributeFilterPolicy id="releaseTargetedIDToAnyone">
+        <afp:PolicyRequirementRule xsi:type="basic:ANY" />
+        <afp:AttributeRule attributeID="eduPersonTargetedID">
+            <afp:PermitValueRule xsi:type="basic:ANY" />
+        </afp:AttributeRule>
+    </afp:AttributeFilterPolicy>
+
+    <afp:AttributeFilterPolicy id="releaseLdapStuffToAnyone">
+        <afp:PolicyRequirementRule xsi:type="basic:ANY" />
+        <afp:AttributeRule attributeID="givenName">
+            <afp:PermitValueRule xsi:type="basic:ANY" />
+        </afp:AttributeRule>
+        <afp:AttributeRule attributeID="sn">
+            <afp:PermitValueRule xsi:type="basic:ANY" />
+        </afp:AttributeRule>
+        <afp:AttributeRule attributeID="cn">
+            <afp:PermitValueRule xsi:type="basic:ANY" />
+        </afp:AttributeRule>
+        <afp:AttributeRule attributeID="organizationName">
+            <afp:PermitValueRule xsi:type="basic:ANY" />
+        </afp:AttributeRule>
+        <afp:AttributeRule attributeID="mail">
+                <afp:PermitValueRule xsi:type="basic:ANY" />
+        </afp:AttributeRule>
+        <afp:AttributeRule attributeID="eduPersonPrincipalName">
+            <afp:PermitValueRule xsi:type="basic:ANY" />
+        </afp:AttributeRule>
+        <afp:AttributeRule attributeID="eduPersonScopedAffiliation">
+            <afp:PermitValueRule xsi:type="basic:ANY" />
+        </afp:AttributeRule>
+    </afp:AttributeFilterPolicy>
+
+</afp:AttributeFilterPolicyGroup>
+EOF
+
+cat <<EOF > ${tempdir}/relying-party.xml
+<?xml version="1.0" encoding="UTF-8"?>
+
+<rp:RelyingPartyGroup xmlns:rp="urn:mace:shibboleth:2.0:relying-party" xmlns:saml="urn:mace:shibboleth:2.0:relying-party:saml" 
+                      xmlns:metadata="urn:mace:shibboleth:2.0:metadata" xmlns:resource="urn:mace:shibboleth:2.0:resource" 
+                      xmlns:security="urn:mace:shibboleth:2.0:security" xmlns:samlsec="urn:mace:shibboleth:2.0:security:saml" 
+                      xmlns:samlmd="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+                      xsi:schemaLocation="urn:mace:shibboleth:2.0:relying-party classpath:/schema/shibboleth-2.0-relying-party.xsd
+                                          urn:mace:shibboleth:2.0:relying-party:saml classpath:/schema/shibboleth-2.0-relying-party-saml.xsd
+                                          urn:mace:shibboleth:2.0:metadata classpath:/schema/shibboleth-2.0-metadata.xsd
+                                          urn:mace:shibboleth:2.0:resource classpath:/schema/shibboleth-2.0-resource.xsd 
+                                          urn:mace:shibboleth:2.0:security classpath:/schema/shibboleth-2.0-security.xsd
+                                          urn:mace:shibboleth:2.0:security:saml classpath:/schema/shibboleth-2.0-security-policy-saml.xsd
+                                          urn:oasis:names:tc:SAML:2.0:metadata classpath:/schema/saml-schema-metadata-2.0.xsd">
+
+    <!-- ========================================== -->
+    <!--      Relying Party Configurations          -->
+    <!-- ========================================== -->
+    <rp:AnonymousRelyingParty provider="https://${shib_idp_server}/idp/shibboleth" defaultSigningCredentialRef="IdPCredential"/>
+
+    <rp:DefaultRelyingParty provider="https://${shib_idp_server}/idp/shibboleth" defaultSigningCredentialRef="IdPCredential">
+        <rp:ProfileConfiguration xsi:type="saml:ShibbolethSSOProfile" includeAttributeStatement="false" 
+                                 assertionLifetime="PT5M" signResponses="conditional" signAssertions="never"/>
+        <rp:ProfileConfiguration xsi:type="saml:SAML1AttributeQueryProfile" assertionLifetime="PT5M" 
+                                 signResponses="conditional" signAssertions="never"/>
+        <rp:ProfileConfiguration xsi:type="saml:SAML1ArtifactResolutionProfile" signResponses="conditional" 
+                                 signAssertions="never"/>
+        <rp:ProfileConfiguration xsi:type="saml:SAML2SSOProfile" includeAttributeStatement="true" 
+                                 assertionLifetime="PT5M" assertionProxyCount="0" 
+                                 signResponses="never" signAssertions="always" 
+                                 encryptAssertions="conditional" encryptNameIds="never"/>
+        <rp:ProfileConfiguration xsi:type="saml:SAML2ECPProfile" includeAttributeStatement="true" 
+                                 assertionLifetime="PT5M" assertionProxyCount="0" 
+                                 signResponses="never" signAssertions="always" 
+                                 encryptAssertions="conditional" encryptNameIds="never"/>
+        <rp:ProfileConfiguration xsi:type="saml:SAML2AttributeQueryProfile" 
+                                 assertionLifetime="PT5M" assertionProxyCount="0" 
+                                 signResponses="conditional" signAssertions="never" 
+                                 encryptAssertions="conditional" encryptNameIds="never"/>
+        <rp:ProfileConfiguration xsi:type="saml:SAML2ArtifactResolutionProfile" 
+                                 signResponses="never" signAssertions="always" 
+                                 encryptAssertions="conditional" encryptNameIds="never"/>
+    </rp:DefaultRelyingParty>
+
+
+    <!-- ========================================== -->
+    <!--      Metadata Configuration                -->
+    <!-- ========================================== -->
+    <!-- MetadataProvider the combining other MetadataProviders -->
+    <metadata:MetadataProvider id="ShibbolethMetadata" xsi:type="metadata:ChainingMetadataProvider">
+
+        <!-- Load the IdP's own metadata.  This is necessary for artifact support. -->
+        <metadata:MetadataProvider id="IdPMD" xsi:type="metadata:FilesystemMetadataProvider"
+                                   metadataFile="/opt/shibboleth-idp/metadata/idp-metadata.xml"
+                                   maxRefreshDelay="P1D" />
+
+
+        <!-- Load metadata from Discovery Service. Uncomment once Discovery Service is installed. -->
+        <!--
+        <metadata:MetadataProvider id="URLMD" xsi:type="metadata:FileBackedHTTPMetadataProvider"
+                          metadataURL="http://${shib_ds_server}/sites.xml"
+                          backingFile="/opt/shibboleth-idp/metadata/sites-metadata.xml">
+            <metadata:MetadataFilter xsi:type="metadata:ChainingFilter">
+                <metadata:MetadataFilter xsi:type="metadata:RequiredValidUntil" 
+                                maxValidityInterval="P3660D" />
+                    <metadata:MetadataFilter xsi:type="metadata:EntityRoleWhiteList">
+                    <metadata:RetainedRole>samlmd:SPSSODescriptor</metadata:RetainedRole>
+                </metadata:MetadataFilter>
+            </metadata:MetadataFilter>
+        </metadata:MetadataProvider>
+        -->
+
+    </metadata:MetadataProvider>
+
+
+    <!-- ========================================== -->
+    <!--     Security Configurations                -->
+    <!-- ========================================== -->
+    <security:Credential id="IdPCredential" xsi:type="security:X509Filesystem">
+        <security:PrivateKey>/opt/shibboleth-idp/credentials/idp.key</security:PrivateKey>
+        <security:Certificate>/opt/shibboleth-idp/credentials/idp.crt</security:Certificate>
+    </security:Credential>
+
+    <!-- Trust engine used to evaluate the signature on loaded metadata.  (Not implemented for installer's discovery service) -->
+    <!--
+    <security:TrustEngine id="shibboleth.MetadataTrustEngine" xsi:type="security:StaticExplicitKeySignature">
+        <security:Credential id="${shib_ds_server}" xsi:type="security:X509Filesystem">
+            <security:Certificate>/opt/shibboleth-idp/credentials/${shib_ds_server}.crt</security:Certificate>
+        </security:Credential>
+    </security:TrustEngine>
+     -->
+
+    <!-- DO NOT EDIT BELOW THIS POINT -->
+    <security:TrustEngine id="shibboleth.SignatureTrustEngine" xsi:type="security:SignatureChaining">
+        <security:TrustEngine id="shibboleth.SignatureMetadataExplicitKeyTrustEngine" xsi:type="security:MetadataExplicitKeySignature" metadataProviderRef="ShibbolethMetadata"/>
+        <security:TrustEngine id="shibboleth.SignatureMetadataPKIXTrustEngine" xsi:type="security:MetadataPKIXSignature" metadataProviderRef="ShibbolethMetadata"/>
+    </security:TrustEngine>
+    <security:TrustEngine id="shibboleth.CredentialTrustEngine" xsi:type="security:Chaining">
+        <security:TrustEngine id="shibboleth.CredentialMetadataExplictKeyTrustEngine" xsi:type="security:MetadataExplicitKey" metadataProviderRef="ShibbolethMetadata"/>
+        <security:TrustEngine id="shibboleth.CredentialMetadataPKIXTrustEngine" xsi:type="security:MetadataPKIXX509Credential" metadataProviderRef="ShibbolethMetadata"/>
+    </security:TrustEngine>
+    <security:SecurityPolicy id="shibboleth.ShibbolethSSOSecurityPolicy" xsi:type="security:SecurityPolicyType">
+        <security:Rule xsi:type="samlsec:Replay" required="false"/>
+        <security:Rule xsi:type="samlsec:IssueInstant" required="false"/>
+        <security:Rule xsi:type="samlsec:MandatoryIssuer"/>
+    </security:SecurityPolicy>
+    <security:SecurityPolicy id="shibboleth.SAML1AttributeQuerySecurityPolicy" xsi:type="security:SecurityPolicyType">
+        <security:Rule xsi:type="samlsec:Replay"/>
+        <security:Rule xsi:type="samlsec:IssueInstant"/>
+        <security:Rule xsi:type="samlsec:ProtocolWithXMLSignature" trustEngineRef="shibboleth.SignatureTrustEngine"/>
+        <security:Rule xsi:type="security:ClientCertAuth" trustEngineRef="shibboleth.CredentialTrustEngine"/>
+        <security:Rule xsi:type="samlsec:MandatoryIssuer"/>
+        <security:Rule xsi:type="security:MandatoryMessageAuthentication"/>
+    </security:SecurityPolicy>
+    <security:SecurityPolicy id="shibboleth.SAML1ArtifactResolutionSecurityPolicy" xsi:type="security:SecurityPolicyType">
+        <security:Rule xsi:type="samlsec:Replay"/>
+        <security:Rule xsi:type="samlsec:IssueInstant"/>
+        <security:Rule xsi:type="samlsec:ProtocolWithXMLSignature" trustEngineRef="shibboleth.SignatureTrustEngine"/>
+        <security:Rule xsi:type="security:ClientCertAuth" trustEngineRef="shibboleth.CredentialTrustEngine"/>
+        <security:Rule xsi:type="samlsec:MandatoryIssuer"/>
+        <security:Rule xsi:type="security:MandatoryMessageAuthentication"/>
+    </security:SecurityPolicy>
+    <security:SecurityPolicy id="shibboleth.SAML2SSOSecurityPolicy" xsi:type="security:SecurityPolicyType">
+        <security:Rule xsi:type="samlsec:Replay"/>
+        <security:Rule xsi:type="samlsec:IssueInstant"/>
+        <security:Rule xsi:type="samlsec:SAML2AuthnRequestsSigned"/>
+        <security:Rule xsi:type="samlsec:ProtocolWithXMLSignature" trustEngineRef="shibboleth.SignatureTrustEngine"/>
+        <security:Rule xsi:type="samlsec:SAML2HTTPRedirectSimpleSign" trustEngineRef="shibboleth.SignatureTrustEngine"/>
+        <security:Rule xsi:type="samlsec:SAML2HTTPPostSimpleSign" trustEngineRef="shibboleth.SignatureTrustEngine"/>
+        <security:Rule xsi:type="samlsec:MandatoryIssuer"/>
+    </security:SecurityPolicy>
+    <security:SecurityPolicy id="shibboleth.SAML2AttributeQuerySecurityPolicy" xsi:type="security:SecurityPolicyType">
+        <security:Rule xsi:type="samlsec:Replay"/>
+        <security:Rule xsi:type="samlsec:IssueInstant"/>
+        <security:Rule xsi:type="samlsec:ProtocolWithXMLSignature" trustEngineRef="shibboleth.SignatureTrustEngine"/>
+        <security:Rule xsi:type="samlsec:SAML2HTTPRedirectSimpleSign" trustEngineRef="shibboleth.SignatureTrustEngine"/>
+        <security:Rule xsi:type="samlsec:SAML2HTTPPostSimpleSign" trustEngineRef="shibboleth.SignatureTrustEngine"/>
+        <security:Rule xsi:type="security:ClientCertAuth" trustEngineRef="shibboleth.CredentialTrustEngine"/>
+        <security:Rule xsi:type="samlsec:MandatoryIssuer"/>
+        <security:Rule xsi:type="security:MandatoryMessageAuthentication"/>
+    </security:SecurityPolicy>
+    <security:SecurityPolicy id="shibboleth.SAML2ArtifactResolutionSecurityPolicy" xsi:type="security:SecurityPolicyType">
+        <security:Rule xsi:type="samlsec:Replay"/>
+        <security:Rule xsi:type="samlsec:IssueInstant"/>
+        <security:Rule xsi:type="samlsec:ProtocolWithXMLSignature" trustEngineRef="shibboleth.SignatureTrustEngine"/>
+        <security:Rule xsi:type="samlsec:SAML2HTTPRedirectSimpleSign" trustEngineRef="shibboleth.SignatureTrustEngine"/>
+        <security:Rule xsi:type="samlsec:SAML2HTTPPostSimpleSign" trustEngineRef="shibboleth.SignatureTrustEngine"/>
+        <security:Rule xsi:type="security:ClientCertAuth" trustEngineRef="shibboleth.CredentialTrustEngine"/>
+        <security:Rule xsi:type="samlsec:MandatoryIssuer"/>
+        <security:Rule xsi:type="security:MandatoryMessageAuthentication"/>
+    </security:SecurityPolicy>
+    <security:SecurityPolicy id="shibboleth.SAML2SLOSecurityPolicy" xsi:type="security:SecurityPolicyType">
+        <security:Rule xsi:type="samlsec:Replay"/>
+        <security:Rule xsi:type="samlsec:IssueInstant"/>
+        <security:Rule xsi:type="samlsec:ProtocolWithXMLSignature" trustEngineRef="shibboleth.SignatureTrustEngine"/>
+        <security:Rule xsi:type="samlsec:SAML2HTTPRedirectSimpleSign" trustEngineRef="shibboleth.SignatureTrustEngine"/>
+        <security:Rule xsi:type="samlsec:SAML2HTTPPostSimpleSign" trustEngineRef="shibboleth.SignatureTrustEngine"/>
+        <security:Rule xsi:type="security:ClientCertAuth" trustEngineRef="shibboleth.CredentialTrustEngine"/>
+        <security:Rule xsi:type="samlsec:MandatoryIssuer"/>
+        <security:Rule xsi:type="security:MandatoryMessageAuthentication"/>
+    </security:SecurityPolicy>
+</rp:RelyingPartyGroup>
 EOF
 
 cat <<EOF > ${tempdir}/server.xml
@@ -457,6 +643,18 @@ EOF
 datetime_10_years=`date +%Y-%m-%dT%H:%M:%SZ -ud "1970-01-01 + \`expr \\\`date +%s\\\` + \\\`expr 86400 \\\\* 3650\\\`\` seconds"`
 
 cat <<EOF > ${tempdir}/sites.xml
-<EntitiesDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:elab="http://eduserv.org.uk/labels" xmlns:idpdisc="urn:oasis:names:tc:SAML:profiles:SSO:idp-discovery-protocol" xmlns:init="urn:oasis:names:tc:SAML:profiles:SSO:request-init" xmlns:mdrpi="urn:oasis:names:tc:SAML:metadata:rpi" xmlns:mdui="urn:oasis:names:tc:SAML:metadata:ui" xmlns:shibmd="urn:mace:shibboleth:metadata:1.0" xmlns:wayf="http://sdss.ac.uk/2006/06/WAYF" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" ID="my20130501T155342Z" Name="http://${shib_ds_server}" validUntil="${datetime_10_years}">
+<EntitiesDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" 
+                    xmlns:ds="http://www.w3.org/2000/09/xmldsig#" 
+                    xmlns:elab="http://eduserv.org.uk/labels" 
+                    xmlns:idpdisc="urn:oasis:names:tc:SAML:profiles:SSO:idp-discovery-protocol" 
+                    xmlns:init="urn:oasis:names:tc:SAML:profiles:SSO:request-init" 
+                    xmlns:mdrpi="urn:oasis:names:tc:SAML:metadata:rpi" 
+                    xmlns:mdui="urn:oasis:names:tc:SAML:metadata:ui" 
+                    xmlns:shibmd="urn:mace:shibboleth:metadata:1.0" 
+                    xmlns:wayf="http://sdss.ac.uk/2006/06/WAYF" 
+                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+                    ID="my20130501T155342Z" Name="http://${shib_ds_server}" 
+                    validUntil="${datetime_10_years}">
+
 EOF
 

@@ -122,7 +122,7 @@ wget --no-check-certificate https://${shib_idp_server}/idp/profile/Metadata/SAML
 if [ `cat ${tempdir}/idp_site.xml | head -n 1 | grep "^<?xml" | wc -l` -gt 0 ]; then 
 	cat ${tempdir}/idp_site.xml | sed "s/^<?xml [^>]\+>//" >> ${tempdir}/sites.xml
 fi
-echo "</EntitiesDescriptor>" >> ${tempdir}/sites.xml
+echo -e "\n\n</EntitiesDescriptor>" >> ${tempdir}/sites.xml
 sudo cp ${tempdir}/sites.xml /opt/shibboleth-ds/metadata/
 sudo ln -s /opt/shibboleth-ds/metadata/sites.xml /var/www/sites.xml
 

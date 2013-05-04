@@ -1,0 +1,68 @@
+Installing LDAP-backed Shibboleth Identity Provider and Discovery Service for Testing Shibboleth Discovery Services
+-------------------------------------------------------------------------------------------------------------------
+
+1. Copy default_settings.sh to settings.sh.
+
+
+2. Modify the settings file as appropriate.  In theory, assuming you edit the /etc/hosts file of your service provider machine to point the IP address of for the machine you run these installers on,  something like:
+
+	192.168.0.2 	shib-idp.example.org	shib-ds.example.org
+
+then you do not need to change any of the settings for the installers to work.
+
+
+3. Install the LDAP server with the following command (you may get prompted for a sudo password);
+
+	./install-slapd.sh
+
+
+4. Add some test LDAP groups and users using the example commands provide in add_ldap_users.txt.
+
+
+5. Install the Shibboleth Identity Provider with the following command:
+
+	./install-shib-idp.sh
+
+
+6. Install he Shibboleth Dsicovery service using the following command:
+
+	./install-shib-ds.sh
+
+
+7. Edit /opt/shibboleth-ds/conf/relying-parties.xml and uncomment the MetadataProvider for the Discovery Service.
+
+
+8. Assuming you have already installed shibd or something similar on the machine that has your Shibboleth Service Provider, request the Service Provider's metadata from the URL:
+
+	https://<SHIBBOLETH_SERVICE_PROVIDER>/Shibboleth.sso/Metadata
+
+
+9. Edit the XML file, first if it is present remove the XML header (e.g. <?xml version="1.0" encoding="UTF-8" ?>).  Second, if the EntityDescriptor near the start of the file is prepended withe md: then this and eany other occurences of md: in the file need to be removed (e.g. <md:EntityDescriptor -> <EntityDescriptor).
+
+
+10. Copy the XML from step 9 into the file /opt/shibboleth-ds/metadata/sites.xml on the machine you installed the Shibboleth Discovery Service on in step 6.  You will need sudo to do this.
+
+
+11.  Restart Tomcat and Apache on the machine you installed the Shibboleth Discovery Service on in step 6.  You will need to do this as sudo.  You may also want to leave 15-30 seconds beetween restarting Tomcat and Apache to give Tomcat time to initialise properly.
+
+	sudo service tomcat6 restart 
+	sudo service apache2 restart
+
+
+12. Assuming you installed shibd on the Shibboleth Service Provider machine go to /etc/shibboleth/ and request the Discovery Service metadata file, using the following command (you will need to do this as sudo):
+
+	sudo wget http://shib-ds-drn.ecs.soton.ac.uk/sites.xml -O sites-metadata.xml
+
+
+13. Give write privileges to all for /etc/shibboleth/sites-metadata.xml so that updated versions of the metadata file can be downloaded in future, (you will need to do this as sudo):
+
+	sudo chmod a+w /etc/shibboleth/sites-metadata.xml
+
+
+14. Restart shibd and Apache, (you will need to do this as sudo):
+
+	sudo service shibd restart
+	sudo service apache2 restart
+
+
+15. You should now have a working Shibboleth Service Provider.  Try logging in to the application you set up to use Shibboleth as a Service Provider.

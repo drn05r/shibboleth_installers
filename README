@@ -1,0 +1,6 @@
+README
+------
+
+This repository provides a set of scripts to make it really easy to deploy an LDAP-backed Shibboleth Identity Provider and Discovery Service on a Ubuntu 12.04 LTS machine.  It is mainly intended to provide those developing an application that uses Shibboleth as a Service Provider, a test harness to ensure the application with work with Shibboleth before deploying it on a live server and registering it with the Discovery Service provided by a proper Access Management Federation (e.g. UK Access Management Federation).
+
+Currently (as of 3rd May 2013) there have been a number of simplification made to save effort.  Most notably not setting up a trust engine for the Discovery Service to save the effort of having to create further self-signed certificates and pass them around.  However, it should be fairly straightforward to build on the current installer to add pieces of configuration that have currently been deliberately overlooked.

@@ -3,20 +3,25 @@ d=`dirname $0`
 basedir=`cd ${d}; pwd`
 tempdir=$(mktemp -d /tmp/shib-idp_installer.XXXXXXXXXX)
 downloads_dir="$HOME/shibboleth_downloads"
-if [ ! -f "${basedir}/settings.sh" ]; then
-        echo "Cannot find ${basedir}/settings.sh.  Aborting..."
-        exit 1;
-fi
-source ${basedir}/settings.sh
-source ${basedir}/config.sh $tempdir
 echo "+----------------------------------------+"
 echo "| Shibboleth Identity Provider Installer |"
 echo "+----------------------------------------+"
 echo ""
+if [ ! -f "${basedir}/settings.sh" ]; then
+        echo "Cannot find ${basedir}/settings.sh.  Aborting..."
+        exit 1;
+fi
+if [ ! -d "${downloads_dir}" ]; then
+        mkdir ${downloads_dir}
+fi
+source ${basedir}/settings.sh
+source ${basedir}/config.sh $tempdir
 jdbc_file=`ls ${downloads_dir} | grep mysql-connector-java | grep "\.jar" | head -n 1` 
 if [ -z "$jdbc_file" ]; then
-	echo "You must put the JDBC connector (e.g. mysql-connector-java.x.y.z-bin.jar) in your home directory ($HOME)."
-	exit 1
+	cd ${tempdir}
+	wget http://dev.mysql.com/get/Downloads/Connector-J/mysql-connector-java-${mysql_jdbc_version}.zip/from/http:/mysql.he.net/ -O mysql-connector-java-${mysql_jdbc_version}.zip
+	unzip mysql-connector-java-${mysql_jdbc_version}.zip
+	cp mysql-connector-java-${mysql_jdbc_version}.jar ${downloads_dir}
 fi	
 cd $tempdir
 
@@ -148,8 +153,9 @@ echo "${handler_xml}" >> ${tempdir}/handler.xml
 sudo cp ${tempdir}/handler.xml ${shib_idp_home}/conf/
 sudo cat /usr/local/src/${shib_idp_folder}/src/main/webapp/WEB-INF/web.xml | sed "s@${web_xml_allowed_ips}@<param-value>127.0.0.1/32 ::1/128 ${allowed_ips}</param-value>@" > ${tempdir}/web.xml
 sudo cp ${tempdir}/web.xml /usr/local/src/$shib_idp_folder/src/main/webapp/WEB-INF/
-sudo cat /usr/local/src/$shib_idp_folder/src/installer/resources/conf-tmpl/relying-party.xml | sed "s@\\\$IDP_HOME\\\$@${shib_idp_home}@g" | sed "s@\\\$IDP_ENTITY_ID\\\$@https://${shib_idp_server}/idp/shibboleth@g" > ${tempdir}/relying-party.xml
 sudo cp ${tempdir}/relying-party.xml ${shib_idp_home}/conf/
+sudo cp ${tempdir}/attribute-resolver.xml ${shib_idp_home}/conf/
+sudo cp ${tempdir}/attribute-filter.xml ${shib_idp_home}/conf/
 cd ${shib_idp_home}
 sudo chown -R tomcat6 logs metadata  
 sudo chgrp -R tomcat6 conf credentials logs metadata war lib
