@@ -4,20 +4,20 @@ basedir=`cd ${d}; pwd`
 tempdir=$1
 source $basedir/settings.sh
 
-JAVA_HOME=/usr/lib/jvm/java-6-openjdk
+JAVA_HOME="/usr"
 
-cat <<EOF > $tempdir/java_home
-JAVA_HOME=/usr/lib/jvm/java-6-openjdk
+cat <<EOF > ${tempdir}/java_home
+JAVA_HOME=${JAVA_HOME}
 export JAVA_HOME
 EOF
 
-cat <<EOF > $tempdir/ds_home
+cat <<EOF > ${tempdir}/ds_home
 DS_HOME=${shib_ds_home}
-export IDP_HOME
+export DS_HOME
 EOF
 
 cat <<EOF > $tempdir/idp_home
-etc_profile_idp_home="IDP_HOME=${shib_idp_home}
+IDP_HOME=${shib_idp_home}
 export IDP_HOME
 EOF
 

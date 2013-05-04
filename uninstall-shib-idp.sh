@@ -10,6 +10,7 @@ echo ""
 sudo rm -r ${shib_idp_home}
 sudo rm -r /usr/local/src/shibboleth-identityprovider-${shib_idp_version}
 sudo rm /etc/profile.d/idp_home
+sudo rm -r /var/log/shibboleth-idp
 sudo rm /etc/tomcat6/Catalina/localhost/idp.xml
 sudo rm /etc/apache2/sites-enabled/${shib_idp_server}
 sudo rm /etc/apache2/sites-available/${shib_idp_server}

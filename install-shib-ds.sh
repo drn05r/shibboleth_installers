@@ -24,12 +24,9 @@ if [ `grep ${shib_ds_server} /etc/hosts | grep "^127.0.1.1" | wc -l` -eq 0 ]; th
         sudo cp ${tempdir}/hosts /etc/
 fi
 
-JAVA_HOME="/usr/lib/jvm/java-6-openjdk"
-if [ ! -f ${JAVA_HOME} ]; then
+if [ ! -f "${JAVA_HOME}/bin/java" ]; then
 	echo "[`date +%H:%M:%S`] Installing Java"
 	sudo apt-get install -y openjdk-6-jre-headless
-	cp /etc/profile $tempdir
-	echo "$etc_profile_java_home" > $tempdir/java_home
 	sudo cp $tempdir/java_home /etc/profile.d/
 fi
 
@@ -47,16 +44,16 @@ fi
 
 echo "[`date +%H:%M:%S`] Installing Shibboleth Discovery Service"
 cd $tempdir
-shib_ds_download_url="http://shibboleth.net/downloads/discovery-service/"
+shib_ds_download_url="http://shibboleth.net/downloads/centralized-discovery-service/"
 shib_ds_folder="shibboleth-discovery-service-${shib_ds_version}"
 shib_ds_zip="${shib_ds_folder}-bin.zip"
 shib_ds_download_zip_url="${shib_ds_download_url}${shib_ds_version}/${shib_ds_zip}"
 if [ ! -f ${downloads_dir}/${shib_ds_zip} ]; then
-	sudo wget $shib_ds_dowload_zip_url -O ${downloads_dir}/${shib_ds_zip}
+	wget $shib_ds_download_zip_url -O ${downloads_dir}/${shib_ds_zip}
 fi
 cd $downloads_dir
 if [ ! -d $shib_ds_folder ]; then 
-	sudo unzip $shib_ds_zip
+	 unzip $shib_ds_zip
 fi
 sudo mv $shib_ds_folder /usr/local/src/ 
 cd /usr/local/src/$shib_ds_folder
@@ -70,7 +67,7 @@ sudo cp ${tempdir}/expect_ds.sh /usr/local/src/${shib_ds_folder}/
 cd /usr/local/src/${shib_ds_folder}/
 sudo chmod ug+x expect_ds.sh
 sudo ./expect_ds.sh
-sudo ln -s ${shib_ds_home}/logs /var/log/shibboleth
+sudo ln -s ${shib_ds_home}/logs /var/log/shibboleth-ds
 echo "$etc_profile_3" > $tempdir/ds_home
 sudo cp $tempdir/ds_home /etc/profile.d/
 sudo cp $tempdir/ds.xml /etc/tomcat6/Catalina/localhost/
@@ -104,7 +101,7 @@ if [ ! -f /etc/apache2/sites-enabled/${shib_ds_server} ]; then
 	sudo a2ensite ${shib_ds_server}
 	sudo a2enmod ssl
 	sudo a2enmod proxy_ajp 
-        if [ `grep "NameVirtualHost \*:443" /etc/apache2/ports.conf | wc -l` -eq 0 ]; then
+        if [ `grep "^NameVirtualHost \*:443" /etc/apache2/ports.conf | wc -l` -eq 0 ]; then
                 cp /etc/apache2/ports.conf ${tempdir}
                 echo "NameVirtualHost *:443" >> ${tempdir}/ports.conf
                 sudo cp ${tempdir}/ports.conf /etc/apache2/

@@ -12,7 +12,7 @@ allowed_ips="192.168.0.0/16"
 mysql_jdbc_version="5.1.24"
 mysql_root_password="changeme"
 mysql_user_password="changeme"
-ldap_server="localhost.localdomain"
+ldap_server="localhost"
 ldap_domain="example.org"
 ldap_base_dn="dc="`echo ${ldap_server} | sed 's/\./,dc=/g'`
 ldap_people_base_dn="ou=People,${ldap_base_dn}"

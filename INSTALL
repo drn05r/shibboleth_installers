@@ -16,7 +16,7 @@ then you do not need to change any of the settings for the installers to work.
 	./install-slapd.sh
 
 
-4. Add some test LDAP groups and users using the example commands provide in add_ldap_users.txt.
+4. Add some test LDAP groups and users using the example commands provide in add_ldap_users_help.txt.
 
 
 5. Install the Shibboleth Identity Provider with the following command:
@@ -29,7 +29,7 @@ then you do not need to change any of the settings for the installers to work.
 	./install-shib-ds.sh
 
 
-7. Edit /opt/shibboleth-ds/conf/relying-parties.xml and uncomment the MetadataProvider for the Discovery Service.
+7. Edit /opt/shibboleth-idp/conf/relying-party.xml and uncomment the MetadataProvider for the Discovery Service.
 
 
 8. Assuming you have already installed shibd or something similar on the machine that has your Shibboleth Service Provider, request the Service Provider's metadata from the URL:
@@ -51,13 +51,12 @@ then you do not need to change any of the settings for the installers to work.
 
 12. Assuming you installed shibd on the Shibboleth Service Provider machine go to /etc/shibboleth/ and request the Discovery Service metadata file, using the following command (you will need to do this as sudo):
 
-	sudo wget http://shib-ds-drn.ecs.soton.ac.uk/sites.xml -O sites-metadata.xml
+	sudo wget http://shib-ds.example.org/sites.xml -O sites-metadata.xml
 
 
 13. Give write privileges to all for /etc/shibboleth/sites-metadata.xml so that updated versions of the metadata file can be downloaded in future, (you will need to do this as sudo):
 
 	sudo chmod a+w /etc/shibboleth/sites-metadata.xml
-
 
 14. Restart shibd and Apache, (you will need to do this as sudo):
 

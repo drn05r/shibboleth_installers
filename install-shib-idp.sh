@@ -21,7 +21,8 @@ if [ -z "$jdbc_file" ]; then
 	cd ${tempdir}
 	wget http://dev.mysql.com/get/Downloads/Connector-J/mysql-connector-java-${mysql_jdbc_version}.zip/from/http:/mysql.he.net/ -O mysql-connector-java-${mysql_jdbc_version}.zip
 	unzip mysql-connector-java-${mysql_jdbc_version}.zip
-	cp mysql-connector-java-${mysql_jdbc_version}.jar ${downloads_dir}
+	cp mysql-connector-java-${mysql_jdbc_version}/mysql-connector-java-${mysql_jdbc_version}-bin.jar ${downloads_dir}
+	jdbc_file=`ls ${downloads_dir} | grep mysql-connector-java | grep "\.jar" | head -n 1`
 fi	
 cd $tempdir
 
@@ -35,13 +36,10 @@ if [ `grep ${shib_idp_server} /etc/hosts | grep "^127.0.1.1" | wc -l` -eq 0 ]; t
 	sudo cp ${tempdir}/hosts /etc/
 fi
 
-JAVA_HOME="/usr/lib/jvm/java-6-openjdk"
-if [ ! -f ${JAVA_HOME} ]; then
+if [ ! -f "${JAVA_HOME}/bin/java" ]; then
         echo "[`date +%H:%M:%S`] Installing Java"
         sudo apt-get install -y openjdk-6-jre-headless
-        cp /etc/profile $tempdir
-        echo "$etc_profile_java_home" > $tempdir/java_home
-        sudo cp $tempdir/java_home /etc/profile.d/
+        sudo cp ${tempdir}/java_home /etc/profile.d/
 fi
 
 
@@ -63,11 +61,11 @@ shib_idp_folder="shibboleth-identityprovider-${shib_idp_version}"
 shib_idp_zip="${shib_idp_folder}-bin.zip"
 shib_idp_download_zip_url="${shib_idp_download_url}${shib_idp_version}/${shib_idp_zip}"
 if [ ! -f ${downloads_dir}/${shib_idp_zip} ]; then
-	sudo wget $shib_idp_dowload_zip_url -O ${downloads_dir}/${shib_idp_zip}
+	wget ${shib_idp_download_zip_url} -O ${downloads_dir}/${shib_idp_zip}
 fi
 cd $downloads_dir
 if [ ! -d $shib_idp_folder ]; then 
-	sudo unzip $shib_idp_zip
+	unzip $shib_idp_zip
 fi
 sudo mv $shib_idp_folder /usr/local/src/ 
 cd /usr/local/src/$shib_idp_folder
@@ -87,7 +85,7 @@ sudo cp ${tempdir}/expect_idp.sh /usr/local/src/${shib_idp_folder}/
 cd /usr/local/src/${shib_idp_folder}/
 sudo chmod ug+x expect_idp.sh
 sudo ./expect_idp.sh
-sudo ln -s ${shib_idp_home}/logs /var/log/shibboleth
+sudo ln -s ${shib_idp_home}/logs /var/log/shibboleth-idp
 sudo cp $tempdir/idp_home /etc/profile.d/
 sudo cp $tempdir/idp.xml /etc/tomcat6/Catalina/localhost/
 sudo chgrp tomcat6 /etc/tomcat6/Catalina/localhost/idp.xml
@@ -106,7 +104,7 @@ if [ ! -f /etc/ssl/certs/${shib_idp_server}.crt ]; then
         cd $tempdir
         openssl genrsa -out ${shib_idp_server}.key 2048
         openssl req -new -nodes -subj "${shib_idp_ssl_subject}" -key ${shib_idp_server}.key -out ${shib_idp_server}.csr
-        openssl x509 -req -days 3650 -in ${shib_idp_server}.csr -signkey ${shib_idp_server}.key -out ${shib_id_server}.crt
+        openssl x509 -req -days 3650 -in ${shib_idp_server}.csr -signkey ${shib_idp_server}.key -out ${shib_idp_server}.crt
         sudo cp ${shib_idp_server}.key /etc/ssl/private/
         sudo cp ${shib_idp_server}.crt /etc/ssl/certs/
 fi
@@ -130,12 +128,12 @@ if [ ! -f /etc/apache2/sites-enabled/${shib_idp_server} ]; then
         sudo a2ensite ${shib_idp_server}
         sudo a2enmod ssl
         sudo a2enmod proxy_ajp
-        if [ `grep "Listen 8443" /etc/apache2/ports.conf | wc -l` -eq 0 ]; then
+        if [ `grep "^Listen 8443" /etc/apache2/ports.conf | wc -l` -eq 0 ]; then
                 cp /etc/apache2/ports.conf ${tempdir}
                 echo "Listen 8443" >> ${tempdir}/ports.conf
                 sudo cp ${tempdir}/ports.conf /etc/apache2/
         fi
-	if [ `grep "NameVirtualHost \*:443" /etc/apache2/ports.conf | wc -l` -eq 0 ]; then
+	if [ `grep "^NameVirtualHost \*:443" /etc/apache2/ports.conf | wc -l` -eq 0 ]; then
 		cp /etc/apache2/ports.conf ${tempdir}
                 echo "NameVirtualHost *:443" >> ${tempdir}/ports.conf
                 sudo cp ${tempdir}/ports.conf /etc/apache2/

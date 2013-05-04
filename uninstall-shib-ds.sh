@@ -9,6 +9,7 @@ echo "+------------------------------------------+"
 echo ""
 sudo rm -r ${shib_ds_home}
 sudo rm -r /usr/local/src/shibboleth-discovery-service-${shib_ds_version}
+sudo rm -r /var/log/shibboleth-ds
 sudo rm /etc/profile.d/ds_home
 sudo rm /etc/tomcat6/Catalina/localhost/ds.xml
 sudo rm /etc/apache2/sites-enabled/${shib_ds_server}
