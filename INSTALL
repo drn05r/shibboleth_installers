@@ -24,7 +24,7 @@ then you do not need to change any of the settings for the installers to work.
 	./install-shib-idp.sh
 
 
-6. Install he Shibboleth Dsicovery service using the following command:
+6. Install the Shibboleth Discovery Service with the following command:
 
 	./install-shib-ds.sh
 
@@ -37,7 +37,7 @@ then you do not need to change any of the settings for the installers to work.
 	https://<SHIBBOLETH_SERVICE_PROVIDER>/Shibboleth.sso/Metadata
 
 
-9. Edit the XML file, first if it is present remove the XML header (e.g. <?xml version="1.0" encoding="UTF-8" ?>).  Second, if the EntityDescriptor near the start of the file is prepended withe md: then this and eany other occurences of md: in the file need to be removed (e.g. <md:EntityDescriptor -> <EntityDescriptor).
+9. Edit the XML file, first if it is present remove the XML header (e.g. <?xml version="1.0" encoding="UTF-8" ?>).  Second, if the EntityDescriptor tag near the start of the file is prepended with md: or some other namespace prefix, then this and the closing tag need this prefix removed (e.g. <md:EntityDescriptor -> <EntityDescriptor).
 
 
 10. Copy the XML from step 9 into the file /opt/shibboleth-ds/metadata/sites.xml on the machine you installed the Shibboleth Discovery Service on in step 6.  You will need sudo to do this.
@@ -57,6 +57,7 @@ then you do not need to change any of the settings for the installers to work.
 13. Give write privileges to all for /etc/shibboleth/sites-metadata.xml so that updated versions of the metadata file can be downloaded in future, (you will need to do this as sudo):
 
 	sudo chmod a+w /etc/shibboleth/sites-metadata.xml
+
 
 14. Restart shibd and Apache, (you will need to do this as sudo):
 
