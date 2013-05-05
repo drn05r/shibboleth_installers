@@ -16,24 +16,28 @@ if [ ! -d "${downloads_dir}" ]; then
 fi
 source ${basedir}/settings.sh
 source ${basedir}/config.sh $tempdir
+
+
+echo "[`date +%H:%M:%S`] Installing Prerequisites"
+sudo apt-get update || { echo "Could not run apt-get update.  Aborting..."; exit 3; }
+sudo apt-get install -y openssl ntp apache2 unzip expect || { echo "Could not install prerequisite packages using apt-get.  Aborting..."; exit 4; }
+
+
 jdbc_file=`ls ${downloads_dir} | grep mysql-connector-java | grep "\.jar" | head -n 1` 
 if [ -z "$jdbc_file" ]; then
+	echo "[`date +%H:%M:%S`] Downloading JDBC driver"
 	cd ${tempdir}
-	wget http://dev.mysql.com/get/Downloads/Connector-J/mysql-connector-java-${mysql_jdbc_version}.zip/from/http:/mysql.he.net/ -O mysql-connector-java-${mysql_jdbc_version}.zip || { echo "Could not download MySQL JDBC driver.  Aborting..."; exit 3; }
-	unzip mysql-connector-java-${mysql_jdbc_version}.zip || { echo "Could not unzip MySQL JDBC driver.  Aborting..."; exit 4; }
-	cp mysql-connector-java-${mysql_jdbc_version}/mysql-connector-java-${mysql_jdbc_version}-bin.jar ${downloads_dir} || { echo "Could not copy MySQL JDBC driver to ${downloads_dir}.  Aborting..."; exit 5; }
+	wget http://dev.mysql.com/get/Downloads/Connector-J/mysql-connector-java-${mysql_jdbc_version}.zip/from/http:/mysql.he.net/ -O mysql-connector-java-${mysql_jdbc_version}.zip || { echo "Could not download MySQL JDBC driver.  Aborting..."; exit 5; }
+	unzip mysql-connector-java-${mysql_jdbc_version}.zip || { echo "Could not unzip MySQL JDBC driver.  Aborting..."; exit 6; }
+	cp mysql-connector-java-${mysql_jdbc_version}/mysql-connector-java-${mysql_jdbc_version}-bin.jar ${downloads_dir} || { echo "Could not copy MySQL JDBC driver to ${downloads_dir}.  Aborting..."; exit 7; }
 	jdbc_file=`ls ${downloads_dir} | grep mysql-connector-java | grep "\.jar" | head -n 1`
 	if [ -z "$jdbc_file" ]; then
 		echo "MySQL JDBC driver could not be found in ${downloads_dir}.  Aborting..."
-		exit 6
+		exit 8
 	fi
 fi	
 cd ${tempdir}
 
-
-echo "[`date +%H:%M:%S`] Installing Prerequisites"
-sudo apt-get update || { echo "Could not run apt-get update.  Aborting..."; exit 7; }
-sudo apt-get install -y openssl ntp apache2 unzip expect || { echo "Could not install prerequisite packages using apt-get.  Aborting..."; exit 8; }
 
 if [ `grep ${shib_idp_server} /etc/hosts | grep "^127.0.1.1" | wc -l` -eq 0 ]; then
 	echo "[`date +%H:%M:%S`] Adding Shibboleth Identity Provider hostname to local hosts file."
