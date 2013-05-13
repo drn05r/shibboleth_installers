@@ -36,4 +36,19 @@ sudo cp ${tempdir}/ldapscripts.conf /etc/ldapscripts/ || { echo "Could not copy 
 sudo cp ${tempdir}/runtime.debian /usr/share/ldapscripts/ || { echo "Could not copy ${tempdir}/runtime.debian to /usr/share/ldapscripts/.  Aborting..."; exit 9; }
 sudo sh -c "echo -n '${ldap_admin_password}' > /etc/ldapscripts/ldapscripts.passwd" || { echo "Could not write password out to /etc/ldapscripts/ldapscripts.passwd.  Aborting..."; exit 10; }
 sudo chmod 400 /etc/ldapscripts/ldapscripts.passwd || { echo "Could not set permissions for /etc/ldapscripts/ldapscripts.passwd to 400.  Aborting..."; exit 11; }
+sudo cp ${tempdir}/ldapaddperson /usr/sbin/ || { echo "Could not copy ${tempdir}/ldapaddperson to /usr/sbin/.  Aborting..."; exit 12; }
+if [ `grep "s|<mail>|\$_MAIL|g" /usr/share/ldapscripts/runtime | wc -l` -eq 0 ]; then
+	cat /usr/share/ldapscripts/runtime | sed "s/s|<user>|\$_USER|g/s|<user>|\$_USER|g\ns|<gn>|\$_GN|g\ns|<sn>|\$_SN|g\ns|<mail>|\$_MAIL|g/" > ${tempdir}/runtime || { echo "Could not copy modified version of /usr/share/ldapscripts/runtime to ${tempdir}/runtime.  Aborting..."; exit 13; }
+	sudo cp ${tempdir}/runtime /usr/share/ldapscripts/ || { echo "Could not copy ${tempdir}/runtime to /usr/share/ldapscripts/.  Aborting..."; exit 14; }
+fi
+ldapscripts_sed="s/^_findentry.*$/_findentry \\\"\\\$USUFFIX,\\\$SUFFIX\\\" \\\"(\&(objectClass=inetOrgPerson)(uid=\\\$1))\\\"/"
+cat /usr/sbin/ldapsetpasswd | sed "$ldapscripts_sed" | sed "s/ldapsetpasswd/ldapsetpersonpasswd/" | sed "s/POSIX user/inetOrgPerson/" > ${tempdir}/ldapsetpersonpasswd || { echo "Could not create ${tempdir}/ldapsetpersonpasswd by modifying /usr/sbin/ldapsetpasswd.  Aborting..."; exit 15; }
+sudo cp ${tempdir}/ldapsetpersonpasswd /usr/sbin/ || { echo "Could not copy ${tempdir}/ldapsetpersonpasswd to /usr/sbin/.  Aborting..."; exit 16; }
+cat /usr/sbin/ldapmodifyuser | sed "$ldapscripts_sed" | sed "s/ldapmodifyuser/ldapmodifyperson/" | sed "s/POSIX user/inetOrgPerson/" > ${tempdir}/ldapmodifyperson || { echo "Could not create ${tempdir}/ldapmodifyperson by modifying /usr/sbin/ldapmodifyuser.  Aborting..."; exit 17; }
+sudo cp ${tempdir}/ldapmodifyperson /usr/sbin/ || { echo "Could not copy ${tempdir}/ldapmodifyperson to /usr/sbin/.  Aborting..."; exit 18; }
+cat /usr/sbin/ldapdeleteuser | sed "$ldapscripts_sed" | sed "s/ldapdeleteuser/ldapdeleteperson/" | sed "s/POSIX user/inetOrgPerson/" > ${tempdir}/ldapdeleteperson || { echo "Could not create ${tempdir}/ldapdeleteperson by modifying /usr/sbin/ldapdeleteuser.  Aborting..."; exit 19; }
+sudo cp ${tempdir}/ldapdeleteperson /usr/sbin/ || { echo "Could not copy ${tempdir}/ldapdeleteperson to /usr/sbin/.  Aborting..."; exit 20; }
+sudo chmod a+x /usr/sbin/ldap* || { echo "Could not give global execute privileges to all ldapscripts scripts.  Aborting..."; exit 21; }
+
+
 echo -e "\n\n[`date +%H:%M:%S`] LDAP Server installed successfully.  Goodbye.\n"

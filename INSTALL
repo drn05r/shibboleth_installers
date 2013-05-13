@@ -16,7 +16,15 @@ then you do not need to change any of the settings for the installers to work.
 	./install-slapd.sh
 
 
-4. Add some test LDAP groups and users using the example commands provide in add_ldap_users_help.txt.
+4. Add some test users using ldapaddperson. (You will need to run this command as root or using sudo). E.g.
+
+	sudo ldapaddperson joebloggs Joe Bloggs joe.bloggs@example.org
+
+You can use the commands ldapsetpersonpasswd, ldapmodifyperson and ldapdeleteperson to respectively change the password, modify and delete the user specified. E.g.
+
+	sudo ldapsetpersonpasswd joebloggs
+	sudo ldapmodifyperson joebloggs
+	sudo ldapdeleteperson joebloggs
 
 
 5. Install the Shibboleth Identity Provider with the following command:

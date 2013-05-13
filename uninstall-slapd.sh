@@ -7,7 +7,7 @@ echo "+-------------------------+"
 echo "| LDAP Server Uninstaller |"
 echo "+-------------------------+"
 echo ""
-sudo apt-get purge slapd
+sudo apt-get -y purge slapd ldapscripts
 sudo rm -r /etc/ldap
 sudo rm -r /var/lib/ldap 
 echo -e "\n\nShibboleth Identity Provider uninstalled successfully.  Goodbye.\n"

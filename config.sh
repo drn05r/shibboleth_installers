@@ -253,6 +253,22 @@ BrowserMatch "MSIE [17-9]" ssl-unclean-shutdown
 </VirtualHost>
 EOF
 
+cat <<EOF > ${tempdir}/sites-metadata.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<EntitiesDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" 
+                    xmlns:ds="http://www.w3.org/2000/09/xmldsig#" 
+                    xmlns:elab="http://eduserv.org.uk/labels" 
+                    xmlns:idpdisc="urn:oasis:names:tc:SAML:profiles:SSO:idp-discovery-protocol" 
+                    xmlns:init="urn:oasis:names:tc:SAML:profiles:SSO:request-init" 
+                    xmlns:mdrpi="urn:oasis:names:tc:SAML:metadata:rpi" 
+                    xmlns:mdui="urn:oasis:names:tc:SAML:metadata:ui" 
+                    xmlns:shibmd="urn:mace:shibboleth:metadata:1.0" 
+                    xmlns:wayf="http://sdss.ac.uk/2006/06/WAYF" 
+                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+                    ID="my20130501T155342Z" Name="http://shib-ds-drn.ecs.soton.ac.uk" 
+                    validUntil="2023-05-11T13:53:49Z">
+</EntitiesDescriptor>
+EOF
 
 random_string_32=`cat /dev/urandom | base64 | tr -dc "[:alnum:]" | head -c32`
 
@@ -391,6 +407,9 @@ cat <<EOF > ${tempdir}/attribute-filter.xml
         </afp:AttributeRule>
         <afp:AttributeRule attributeID="organizationName">
             <afp:PermitValueRule xsi:type="basic:ANY" />
+        </afp:AttributeRule>
+        <afp:AttributeRule attributeID="uid">
+                <afp:PermitValueRule xsi:type="basic:ANY" />
         </afp:AttributeRule>
         <afp:AttributeRule attributeID="mail">
                 <afp:PermitValueRule xsi:type="basic:ANY" />
@@ -658,3 +677,58 @@ cat <<EOF > ${tempdir}/sites.xml
 
 EOF
 
+cat <<EOF > ${tempdir}/ldapaddperson
+#!/bin/sh
+#  ldapaddperson : adds a inetOrgPerson account to LDAP
+#  Adapted from ldapadduser (Copyright (C) 2005 Ganaël LAPLANCHE - Linagora; Copyright (C) 2006-2011 Ganaël LAPLANCHE)
+#  See /usr/share/doc/ldapscripts/copyright for more details.
+
+if [ -z "\$1" ] || [ -z "\$2" ] || [ -z "\$3" ] || [ -z "\$4" ] || [ "\$1" = "-h" ] || [ "\$1" = "--help" ]
+then
+  echo "Usage : \$0 <username> <givenName> <surname> <mail>"
+  echo "E.g. \$0 joebloggs Joe Bloggs joe.bloggs@example.org"
+  exit 1
+fi
+_USER=\$1
+_GN=\$2
+_SN=\$3
+_MAIL=\$4
+
+# Source runtime file
+_RUNTIMEFILE="/usr/share/ldapscripts/runtime"
+. "\$_RUNTIMEFILE"
+
+_getldif="_extractldif 2"
+
+# Add user to LDAP
+\$_getldif | _filterldif | _askattrs | _utf8encode | _ldapadd
+
+[ \$? -eq 0 ] || end_die "Error adding user \$_USER to LDAP"
+echo_log "Successfully added user \$_USER to LDAP"
+
+warn_log "Setting password for user \$_USER"
+_askpassword
+
+# Add user password
+if [ -n "\$_PASSWORD" ]
+then
+  _changepassword "\$_PASSWORD" "uid=\$_USER,\$USUFFIX,\$SUFFIX"
+  [ $? -eq 0 ] && echo_log "Successfully set password for user \$_USER"
+else
+  [ -n "\$PASSWORDGEN" ] && warn_log "Warning : got invalid password for user \$_USER (password not set)"
+fi
+
+end_ok
+
+# Ldif template ##################################
+##dn: uid=<user>,${ldap_people_base_dn}
+##objectclass: top
+##objectclass: person
+##objectclass: organizationalPerson
+##objectclass: inetOrgPerson
+##cn: <gn> <sn>
+##sn: <sn>
+##givenname: <gn>
+##uid: <user>
+##ou: People
+EOF
