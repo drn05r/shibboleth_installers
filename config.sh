@@ -130,8 +130,6 @@ send "no\r"
 interact
 EOF
 
-
-
 cat <<EOF > $tempdir/mysql_setup.sql 
 SET NAMES 'utf8';
 SET CHARACTER SET utf8;
@@ -251,6 +249,18 @@ BrowserMatch "MSIE [2-6]" \
 BrowserMatch "MSIE [17-9]" ssl-unclean-shutdown
 
 </VirtualHost>
+EOF
+
+cat <<EOF > ${tempdir}/update-shibboleth-ds-metadata
+#!/bin/bash
+tempdir=\`mktemp -d\`
+sixdays=\`date +%Y-%m-%dT%H:%M:%SZ --date="+6 days"\`
+cat /opt/shibboleth-ds/metadata/sites.xml | sed "s/validUntil=\\"[^\\"]\+/validUntil=\\"\${sixdays}/" > \${tempdir}/sites.xml
+mv \${tempdir}/sites.xml /opt/shibboleth-ds/metadata/
+service tomcat6 restart 1>/dev/null
+sleep 30
+service apache2 restart 1>/dev/null
+rmdir \${tempdir}
 EOF
 
 cat <<EOF > ${tempdir}/sites-metadata.xml
@@ -659,7 +669,7 @@ GETENTPWCMD="getent passwd"
 GETENTGRCMD="getent group"
 EOF
 
-datetime_10_years=`date +%Y-%m-%dT%H:%M:%SZ -ud "1970-01-01 + \`expr \\\`date +%s\\\` + \\\`expr 86400 \\\\* 3650\\\`\` seconds"`
+sixdays=`date +%Y-%m-%dT%H:%M:%SZ --date="+6 days"`
 
 cat <<EOF > ${tempdir}/sites.xml
 <EntitiesDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" 
@@ -673,7 +683,7 @@ cat <<EOF > ${tempdir}/sites.xml
                     xmlns:wayf="http://sdss.ac.uk/2006/06/WAYF" 
                     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
                     ID="my20130501T155342Z" Name="http://${shib_ds_server}" 
-                    validUntil="${datetime_10_years}">
+                    validUntil="${sixdays}">
 
 EOF
 

@@ -127,10 +127,12 @@ fi
 echo -e "\n\n</EntitiesDescriptor>" >> ${tempdir}/sites.xml || { echo "Could not copy append closing EntitiesDescriptor tag to ${tempdir}/sites.xml.  Aborting..."; exit 50; }
 sudo cp ${tempdir}/sites.xml ${shib_ds_home}/metadata/ || { echo "Could not copy ${tempdir}/sites.conf to ${shib_ds_home}/metadata/.  Aborting..."; exit 51; }
 sudo ln -s ${shib_ds_home}/metadata/sites.xml /var/www/sites.xml || { echo "Could not create symlink /var/www/sites.xml -> ${shib_ds_home}/metadata/sites.xml.  Aborting..."; exit 52; }
+sudo cp ${tempdir}/update-shibboleth-ds-metadata /etc/cron.daily/ || { echo "Could not copy ${tempdir}/update-shibboleth-ds-metadata to /etc/cron.daily/.  Aborting..."; exit 53; }
+sudo chmod a+x /etc/cron.daily/update-shibboleth-ds-metadata || { echo "Could not make /etc/cron.daily/update-shibboleth-ds-metadata executable to all.  Aborting..."; exit 54; }
 
-sudo service tomcat6 restart || { echo "Could not restart Tomcat.  Aborting..."; exit 53; }
+sudo service tomcat6 restart || { echo "Could not restart Tomcat.  Aborting..."; exit 55; }
 echo "[`date +%H:%M:%S`] Sleeping for 30 seconds to allow Tomcat to initialise before restarting Apache."
 sleep 30
-sudo service apache2 restart || { echo "Could not restart Apache.  Aborting..."; exit 54; }
+sudo service apache2 restart || { echo "Could not restart Apache.  Aborting..."; exit 56; }
 
 echo -e "\n\n[`date +%H:%M:%S`] Shibboleth Discovery Service installed successfully.  Goodbye.\n"
