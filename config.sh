@@ -740,5 +740,6 @@ end_ok
 ##sn: <sn>
 ##givenname: <gn>
 ##uid: <user>
+##mail: <mail>
 ##ou: People
 EOF
