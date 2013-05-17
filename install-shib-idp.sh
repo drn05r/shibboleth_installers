@@ -20,7 +20,7 @@ source ${basedir}/config.sh $tempdir
 
 echo "[`date +%H:%M:%S`] Installing Prerequisites"
 sudo apt-get update || { echo "Could not run apt-get update.  Aborting..."; exit 3; }
-sudo apt-get install -y openssl ntp apache2 unzip expect || { echo "Could not install prerequisite packages using apt-get.  Aborting..."; exit 4; }
+sudo apt-get install -y openssl ntp apache2 unzip expect tomcat6 || { echo "Could not install prerequisite packages using apt-get.  Aborting..."; exit 4; }
 
 
 jdbc_file=`ls ${downloads_dir} | grep mysql-connector-java | grep "\.jar" | head -n 1` 

@@ -20,7 +20,7 @@ fi
 
 echo "[`date +%H:%M:%S`] Installing Prerequisites"
 sudo apt-get update || { echo "Could not run apt-get update.  Aborting..."; exit 3; }
-sudo apt-get install -y openssl ntp apache2 unzip expect || { echo "Could not install prerequisite packages using apt-get.  Aborting..."; exit 4; }
+sudo apt-get install -y openssl ntp apache2 unzip expect tomcat6 || { echo "Could not install prerequisite packages using apt-get.  Aborting..."; exit 4; }
 
 
 if [ `grep ${shib_ds_server} /etc/hosts | grep "^127.0.1.1" | wc -l` -eq 0 ]; then
