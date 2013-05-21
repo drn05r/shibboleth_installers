@@ -8,6 +8,8 @@ Currently (as of 13th May 2013) there have been a number of simplification made 
 
 Attribution
 -----------
+This work was undertaken in support the NeuroHub project (http://www.neurohub.ac.uk/).
+
 The installation scripts for the Shibboleth Identity Provider and Discovery Service have been updated from various guides provided by the main Shibboleth wiki (https://wiki.shibboleth.net/), SWITCH (http://www.switch.ch/aai/about/shibboleth/index.html) and the UK Access Management Federation (http://www.ukfederation.org.uk/).
 
 To simplify the adding, modification and deletion of inetOrgPerson accounts on the LDAP server, the LDAP scripts created by Ganael Laplanche (see https://sourceforge.net/projects/ldapscripts/) have been adapted to create inetOrgPerson accounts rather than POSIX user accounts.
