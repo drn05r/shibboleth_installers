@@ -164,7 +164,7 @@ IDENTIFIED BY '${mysql_user_password}';
 FLUSH PRIVILEGES;
 EOF
 
-cat <<EOF > ${tempdir}/${shib_idp_server}
+cat <<EOF > ${tempdir}/${shib_idp_server}.idp
 ServerName ${shib_idp_server}
 <VirtualHost _default_:443>
 ServerName ${shib_idp_server}:443
@@ -184,6 +184,7 @@ SSLCertificateKeyFile /etc/ssl/private/${shib_idp_server}.key
 </Proxy>
     
 ProxyPass /idp ajp://localhost:8009/idp retry=5
+#ProxyPass /ds ajp://localhost:8009/ds retry=5
 
 BrowserMatch "MSIE [2-6]" \
              nokeepalive ssl-unclean-shutdown \
@@ -221,7 +222,7 @@ BrowserMatch "MSIE [17-9]" ssl-unclean-shutdown
 </VirtualHost>
 EOF
 
-cat <<EOF > ${tempdir}/${shib_ds_server}
+cat <<EOF > ${tempdir}/${shib_ds_server}.ds
 ServerName ${shib_ds_server}
 <VirtualHost _default_:443>
 ServerName ${shib_ds_server}:443

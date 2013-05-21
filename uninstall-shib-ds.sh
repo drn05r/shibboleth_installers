@@ -12,8 +12,13 @@ sudo rm -r /usr/local/src/shibboleth-discovery-service-${shib_ds_version}
 sudo rm -r /var/log/shibboleth-ds
 sudo rm /etc/profile.d/ds_home
 sudo rm /etc/tomcat6/Catalina/localhost/ds.xml
-sudo rm /etc/apache2/sites-enabled/${shib_ds_server}
-sudo rm /etc/apache2/sites-available/${shib_ds_server}
+if [ "${shib_ds_server}" != "${shib_idp_server}" ]; then
+	sudo rm /etc/apache2/sites-enabled/${shib_ds_server}
+	sudo rm /etc/apache2/sites-available/${shib_ds_server}
+else
+	cat /etc/apache2/sites-enabled/${shib_idp_server} | sed "s@^ProxyPass /ds@#ProxyPass /ds@" > ${tempdir}/${shib_idp_server}
+	sudo cp ${tempdir}/${shib_idp_server} /etc/apache2/sites-enabled/
+fi
 sudo rm /var/www/sites.xml
 hosts_line=`cat /etc/hosts | grep "^127.0.1.1"`
 hosts_line_after=`echo ${hosts_line} | sed "s/${shib_ds_server}//g" | sed "s/  / /"`

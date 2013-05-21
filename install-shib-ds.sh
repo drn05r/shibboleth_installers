@@ -102,7 +102,7 @@ if [ ! -f /etc/apache2/sites-enabled/${shib_ds_server} ]; then
 	echo "[`date +%H:%M:%S`] Configuring Apache"
 	cat /etc/apache2/conf.d/security | sed "s/ServerTokens OS/ServerTokens Prod/" > $tempdir/security || { echo "Could not copy a modified version of /etc/apache2/conf.d/security to ${tempdir}.  Aborting..."; exit 36; }
 	sudo cp ${tempdir}/security /etc/apache2/conf.d/ || { echo "Could not copy file ${tempdir}/security to /etc/apache2/conf.d/.  Aborting..."; exit 37; }
-	sudo cp ${tempdir}/${shib_ds_server} /etc/apache2/sites-available/ || { echo "Could not copy file ${tempdir}/${shib_ds_server} to /etc/apache2/sites-available/.  Aborting..."; exit 38; }
+	sudo cp ${tempdir}/${shib_ds_server}.ds /etc/apache2/sites-available/${shib_ds_server} || { echo "Could not copy file ${tempdir}/${shib_ds_server}.ds to /etc/apache2/sites-available/${shib_ds_server}.  Aborting..."; exit 38; }
 	sudo a2ensite ${shib_ds_server}  || { echo "Could not enable site ${shib_ds_server} in Apache.  Aborting..."; exit 39; }
 	sudo a2enmod ssl || { echo "Could not enable module ssl for Apache.  Aborting..."; exit 39; }
 	sudo a2enmod proxy_ajp || { echo "Could not enable module proxy_ajp for Apache.  Aborting..."; exit 40; }
@@ -111,6 +111,10 @@ if [ ! -f /etc/apache2/sites-enabled/${shib_ds_server} ]; then
                 echo "NameVirtualHost *:443" >> ${tempdir}/ports.conf || { echo "Could not add 'NameVirtualHost *:443' to ${tempdir}/ports.conf.  Aborting..."; exit 42; }
                 sudo cp ${tempdir}/ports.conf /etc/apache2/ || { echo "Could not copy modified ${tempdir}/ports.conf to /etc/apache2/.  Aborting..."; exit 43; }
         fi
+elif [ "${shib_ds_server}" == "${shib_idp_server}" ]; then
+	echo "[`date +%H:%M:%S`] Configuring Apache (on same host as Identity Provider)"
+	cat /etc/apache2/sites-enabled/${shib_idp_server} | sed "s@^#ProxyPass /ds@ProxyPass /ds@" > ${tempdir}/${shib_idp_server} || { echo "Could not write modified /etc/apache2/sites-enabled/${shib_idp_server} to ${tempdir}.  Aborting..."; exit 57; }
+        sudo cp ${tempdir}/${shib_idp_server} /etc/apache2/sites-enabled/ || { echo "Could not copy modified ${tempdir}/${shib_idp_server} to /etc/apache2/sites-enabled/.  Aborting..."; exit 58; }
 fi
 
 
